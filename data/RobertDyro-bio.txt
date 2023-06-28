@@ -1,0 +1,5 @@
+Robert Dyro is a PhD candidate in the Stanford Autonomous Systems Lab (ASL) at
+Stanford University, where he works on behavior modeling and planning
+optimization for robotics. He is advised by Marco Pavone. He received a BSc in
+Aerospace Engineering with honors from University of California, Los Angeles in
+2018.

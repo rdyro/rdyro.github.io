@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: Sparse Automatic Differentiation
+---
+timestamp: 2021/06/01 00:00
+---
+img: /images/under_construction.png
+---
+authors: Robert Dyro
+---
+summary: Reverse-mode automatic differentiation with full sparse Jacobians and Hessians.
+---
+body:

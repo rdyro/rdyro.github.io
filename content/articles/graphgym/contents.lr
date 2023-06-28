@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: GraphGym Tutorial and Neural Architecture Search
+---
+img: /images/under_construction.png
+---
+timestamp: 2023/02/10 00:00
+---
+authors: Robert Dyro
+---
+summary: An introduction to GraphGym and an extension of GraphGym to perform Neural Architecture Search (NAS).
+---
+body:

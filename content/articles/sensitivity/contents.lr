@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: Sensitivity analysis using PyTorch and JAX
+---
+img: /images/under_construction.png
+---
+timestamp: 2022/02/01 00:00
+---
+authors: Robert Dyro
+---
+summary: Optimization sensitivity analysis with PyTorch and JAX.
+---
+body:

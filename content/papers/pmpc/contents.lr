@@ -1,0 +1,23 @@
+_template: paper.html
+---
+_model: paper
+---
+title: Particle MPC for Uncertain and Learning-Based Control
+---
+authors: Robert Dyro and James Harrison and Apoorva Sharma and Marco Pavone
+---
+venue: IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)
+---
+year: 2021
+---
+timestamp: 2021-06-01 00:00:00 -0700
+---
+paper_url: https://arxiv.org/abs/2104.02213
+---
+img: /images/pmpc.png
+---
+summary: Sampling arbitrary dynamical uncertainty and then optimization over the possibilities <em>jointly</em> gives safe real-time optimal control.
+---
+body:
+
+hello

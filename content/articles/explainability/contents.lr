@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: Optimizing Models for Fairness and Explainability
+---
+img: /images/whack_logo.png
+---
+timestamp: 2022/06/01 00:00
+---
+authors: Robert Dyro
+---
+summary: Optimizing Models for Fairness and Explainability via Shapley value and local linear model penalization and differentiation.
+---
+body:

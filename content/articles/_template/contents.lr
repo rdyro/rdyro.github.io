@@ -1,0 +1,15 @@
+_hidden: yes
+---
+_template: page.html
+---
+_model: article
+---
+title: Title
+---
+timestamp: 2023/05/10 00:00
+---
+authors: Robert Dyro
+---
+summary: Summary
+---
+body:

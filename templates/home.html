@@ -1,0 +1,113 @@
+<html lang="en">
+
+<head>
+  <title>Robert Dyro</title>
+  <meta name="author" content="Robert Dyro">                                     
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="{{ '/static/stylesheet.css' | url }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+</head>
+
+<body>
+  <table class="bodytable"><tbody><tr style="padding:0px"><td style="height:100%;padding:0px;vertical-align:top;">
+    <table><tbody>
+      <tr style="padding:0px">
+        <td style="padding:2.5%;width:63%;vertical-align:middle">
+          <p style="text-align:center"><name>Robert Dyro</name></p>
+          <p> I am a PhD candidate in <a
+            href="https://stanfordasl.github.io/"> Stanford Autonomous Systems
+            Lab (ASL) </a> at Stanford University, where I work on modeling
+            and optimization algorithms for robotics.</p>
+            <p style="text-align:center">
+              <a href="mailto:rdyro@stanford.edu">Email</a> &nbsp/&nbsp
+              <a href="{{ '/data/RobertDyro-resume.pdf' | url }}">Resume</a> &nbsp/&nbsp
+              <a href="{{ '/data/RobertDyro-bio.txt' | url }}">Bio</a> &nbsp/&nbsp
+              <a href="https://scholar.google.com/citations?user=nxgagWoAAAAJ&hl=en&oi=ao">Google Scholar</a>
+              &nbsp/&nbsp
+              <a href="https://github.com/rdyro/">Github</a>
+            </p>
+          </td>
+          <td style="padding:2.5%;width:40%;max-width:40%">
+            <a href="images/RobertDyro.jpg"><img style="width:100%;max-width:100%" alt="profile photo"
+              src="images/RobertDyro_circle.jpg" class="hoverZoomLink"></a>
+            </td>
+          </tr>
+        </tbody></table>
+        <!-- articles heading ------------------------------------------------------------------->
+        <table style="width:100%;"><tbody><tr><td><heading>Projects</heading>
+          <p style="align:center;">Here are some articles I (co)authored showcasing some of the projects I worked on.</p>
+        </td></tr></tbody></table>
+        <!-- list of articles ------------------------------------------------------------------->
+        <table><tbody>
+          {%- for article in site.get("/articles").children | selectattr("_model", "equalto", "article") | sort(reverse=True, attribute="timestamp") -%}
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <a href="{{ article.img }}"><img src="{{ article.img }}" alt="alttext" width="160" height="auto"></a>
+            </td>
+            <td width="75%" valign="middle">
+              <a href="{{ article | url }}">
+                 <papertitle>{{ article.title }}</papertitle>
+              </a>
+              {%- set author_array = article.authors.split(" and ") -%}
+              <br>
+              {%- for i in range(author_array | length) -%}
+                {%- if author_array[i] == "Robert Dyro" -%}
+                <strong>{{ author_array[i] }}</strong>
+                {%- else -%} {{ author_array[i] }} {%- endif -%}
+                {%- if i != (author_array | length) - 1 -%}, {% endif -%}
+                <!--loopindex: {{ loopindex }}, author_array.size: {{ (author_array | length) - 1 }}-->
+              {% endfor %}
+              <br>
+              <p>{{ article.summary}}</p>
+            </td>
+          </tr>
+          {%- endfor -%}
+        </tbody></table>
+        <!-- research heading --------------------------------------------------------------------->
+        <table style="width:100%;"><tbody><tr><td><heading>Research</heading>
+          <p>
+            I'm interested in optimization, robotics, optimization, and
+            machine learning. My research is about creating new
+            models and algorithms for robotic systems that exploit known
+            structure of the problem.
+          </p>
+        </td></tr></tbody></table>
+        <!-- list of papers ----------------------------------------------------------------------->
+        <table><tbody>
+          {%- for paper in site.get("/papers").children | selectattr("_model", "equalto", "paper") | sort(reverse=True, attribute="timestamp") -%}
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <a href="{{ paper.img }}"><img src="{{ paper.img }}" alt="alttext" width="160" height="auto"></a>
+            </td>
+            <td width="75%" valign="middle">
+              <a href="{{ paper.paper_url }}">
+                <papertitle>{{ paper.title }}</papertitle>
+              </a>
+              {%- set author_array = paper.authors.split(" and ") -%}
+              <br>
+              {%- for i in range(author_array | length) -%}
+              {%- if author_array[i] == "Robert Dyro" -%}
+              <strong>{{ author_array[i] }}</strong>
+              {%- else -%} {{ author_array[i] }} {%- endif -%}
+              {%- if i != (author_array | length) - 1 -%}, {% endif -%}
+              {% endfor %}
+              <br>
+              <em>{{ paper.venue }}</em>, {{ paper.year }}
+              <p>{{ paper.summary }}</p>
+            </td>
+          </tr>
+          {%- endfor -%}
+        </tbody></table>
+        <!-- footer ----------------------------------------------------------------------------->
+        <table class="footer">
+          <tbody><tr><td style="padding:0px">
+            <p style="text-align:right;font-size:small;">
+              Website template borrowed, with permission, from <a href="https://jonbarron.info/">Jon Barron</a>.
+            </p>
+          </td></tr></tbody></table>
+        </td></tr></table>
+      </body>
+      
+      </html>
+      
+      

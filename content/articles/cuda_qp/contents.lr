@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: CUDA QP Solver
+---
+timestamp: 2021/10/01 00:00
+---
+img: /images/under_construction.png
+---
+authors: Robert Dyro
+---
+summary: A QP solver fitting into a single CUDA block.
+---
+body:

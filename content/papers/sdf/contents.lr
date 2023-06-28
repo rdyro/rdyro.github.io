@@ -1,0 +1,23 @@
+_template: paper.html
+---
+_model: paper
+---
+title: Learning Deep SDF Maps Online for Robot Navigation and Exploration
+---
+authors: Gadiel Sznaier Camps and Robert Dyro and Marco Pavone and Mac Schwager
+---
+venue: arXiv
+---
+year: 2022
+---
+paper_url: https://arxiv.org/abs/2207.10782
+---
+img: /images/sdf.png
+---
+summary: Optimal planning & control in new environments can be done effectively by learning deep signed distance function (SDF) maps from LiDAR data.
+---
+timestamp: 2022-04-01 00:00:00 -0700
+---
+body:
+
+hello

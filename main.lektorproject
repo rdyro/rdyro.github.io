@@ -1,0 +1,10 @@
+[project]
+name = Personal Website
+
+[packages]
+lektor-markdown-highlighter = 0.3.2
+
+[servers.github]
+name = Github Pages
+enabled = yes
+target = ghpages://rdyro/rdyro.github.io

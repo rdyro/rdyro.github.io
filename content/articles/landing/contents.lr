@@ -1,0 +1,19 @@
+_template: page.html
+---
+_model: article
+---
+title: Optimal Control for Airplane Control
+---
+img: /images/landing_plane.jpg
+---
+timestamp: 2023/04/01 00:00
+---
+authors: Robert Dyro
+---
+summary: Controlling an airplane using optimal control with tuned objective parameterization using ray.tune.
+---
+body:
+
+TBD
+
+----

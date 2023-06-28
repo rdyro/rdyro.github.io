@@ -1,0 +1,15 @@
+_template: page.html
+---
+_model: article
+---
+title: Model Predictive Control
+---
+timestamp: 2021/01/01 00:00
+---
+img: /images/under_construction.png
+---
+authors: Robert Dyro
+---
+summary: Model Predictive Control - general and consensus optimization in Julia & Python.
+---
+body:

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="{{ '/static/stylesheet.css' | url }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+  <link rel="stylesheet" href="{{ get_pygments_stylesheet()|url }}">
 </head>
 
 <body>
@@ -45,7 +46,11 @@
               <a href="{{ article.img }}"><img src="{{ article.img }}" alt="alttext" width="160" height="auto"></a>
             </td>
             <td width="75%" valign="middle">
+              {%- if article.external_url is defined -%}
+              <a href="{{ article.external_url }}">
+              {%- else -%}
               <a href="{{ article | url }}">
+              {%- endif -%}
                  <papertitle>{{ article.title }}</papertitle>
               </a>
               {%- set author_array = article.authors.split(" and ") -%}

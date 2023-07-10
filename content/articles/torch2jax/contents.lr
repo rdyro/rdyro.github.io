@@ -1,0 +1,19 @@
+_template: page.html
+---
+_model: article
+---
+title: torch2jax - Call torch functions and models from JAX
+---
+img: /images/torch2jax_logo2.png
+---
+timestamp: 2023/07/10 00:00
+---
+authors: Robert Dyro
+---
+summary: A package for efficiently wrapping existing PyTorch code as JAX functions in a JIT-compatible way. AutoDiff gradients can be automatically defined, fully integrating any PyTorch code with JAX differentiation.
+---
+external_url: https://rdyro.github.io/torch2jax/
+---
+body:
+
+

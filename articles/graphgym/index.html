@@ -5,6 +5,7 @@
     <meta name="author" content="Robert Dyro" /> 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" type="text/css" href="../../static/stylesheet.css" />
+    <link rel="stylesheet" href="../../static/pygments.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
   </head>
   <body>
@@ -15,15 +16,893 @@
             <h2>GraphGym Tutorial and Neural Architecture Search</h2><br/><strong>Robert Dyro</strong>
           </td>
           <td style="padding:10px;width:25%;vertical-align:middle">
-            <a href="/images/under_construction.png">
-              <img src="/images/under_construction.png" alt="alttext" width="160" height="auto" />
+            <a href="/images/graphgym_icon.png">
+              <img src="/images/graphgym_icon.png" alt="alttext" width="160" height="auto" />
             </a>
           </td>
         </tr>
         <tr style="width:100px"><td colspan="2"></td></tr>
         <tr style="width=100%;padding:0px">
           <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
-            
+            <h1>Managing Experiments with GraphGym </h1>
+<p><em>By Ricky Grannis-Vu and Robert Dyro as part of the Stanford CS224W
+course project.</em></p>
+<p>Graphs can be used to model a variety of objects and their relations,
+such as social network profiles and their connections or proteins and
+their interactions. Within a graph, these objects are represented by
+nodes, and their relations are represented by edges, where an edge
+between two nodes indicates that they are related.</p>
+<p>Graphs can be used within many applications, such as predicting whether
+two social network profiles should be matched based on similar
+interests, or recommending a product to a user based on their prior
+product purchases. For many such problems, graph neural networks (GNNs)
+are used to learn meaningful representations (knows as <em>embeddings</em>) of
+nodes and/or edges in the problem's graph which we can use for
+downstream tasks, such as node classification or link prediction.
+However, designing a GNN to solve a given problem can be very difficult.
+There are thousands of possible GNN models, and finding the best GNN
+designs out of the GNN design space for different tasks can differ
+drastically [1].</p>
+<p>GraphGym [1] lets us easily explore the GNN design space for a
+problem. Users can quickly set up GNN designs and experiment
+configurations and then explore thousands of different GNN designs in
+parallel. Furthermore, these experiment details are completely contained
+within configuration files, allowing users to easily share experiments
+for reproducibility and educational purposes. The GraphGym platform was
+originally developed by You et al. (2020) in their paper "Design Space
+for Graph Neural Networks" [1], and it has since risen in popularity
+and become integrated with PyTorch Geometric (PyG) [2].</p>
+<p>In this tutorial, we will explore how we can use GraphGym to design a
+GNN to classify academic papers by high-level topic. We depict a
+high-level visualization of the GraphGym workflow below; in this
+tutorial, we will provide a detailed walkthrough of each step in the
+workflow below.</p>
+<p align="center">
+<img src="/images/graphgym_outline.png" />
+<p align="center">
+Figure 1: High-level GraphGym workflow
+</p>
+</p><h1><strong>The Task</strong> </h1>
+<p>In our approach, we use the "Cora" sub-graph dataset within the larger
+CitationFull dataset [3]. Within the "Cora" dataset, academic papers
+are represented by nodes and a citation between two academic papers is
+represented by an edge between the two corresponding nodes. In addition,
+academic papers have associated meta-information which is represented by
+various node features. Each academic paper can be best described by a
+single-high level topic, which we refer to as its classification. In
+total, the "Cora" dataset contains 19,793 nodes; 126,842 edges; 8,170
+node features; and 70 classes.</p>
+<p>Our task is to determine what high-level topic best represents each
+academic paper, or node, within our graph datasets. Thus, our task can
+be modeled as a node classification problem.</p>
+<p>We will design a GNN which, when trained, will be able to accurately
+classify each node in our graph datasets. We will hold out 20% of our
+data for evaluation. We will use a <em>transductive</em> training approach,
+meaning that we will use the full dataset during training but mask out
+many of the labels and predict different splits of these labels during
+training and evaluation.</p>
+<h1><strong>Setting Up and Running a Single Experiment</strong> </h1>
+<p>Let's get started by setting up GraphGym. To do so, we need to clone the
+GraphGym GitHub repository, enter the <code>GraphGym/</code> directory, and install necessary dependencies.</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torch-scatter<span class="w"> </span>torch-sparse<span class="w"> </span>torch-cluster<span class="w"> </span>torch-spline-conv<span class="w"> </span>torch-geometric
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/snap-stanford/GraphGym
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>GraphGym
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</pre></div>
+<p>We can use GraphGym to run experiments that explore the GNN design
+space, helping us find the best GNN architecture for a given problem. To
+set up an experiment, we need to create a <code>*.yaml</code> file that describes the experiment configuration. Let's create a new
+file named <code>paper_classification.yaml</code>.</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>paper_classification.yaml
+</pre></div>
+<p>Next, open up the newly-created <code>paper_classification.yaml</code> file in your preferred editor. First, let's add the
+following line:</p>
+<pre><code>out_dir: results
+</code></pre>
+<p>This line specifies that GraphGym should output the results of the
+experiments to a directory named <code>results</code> once
+the experiments finish.</p>
+<p>Next, on to our experiment configurations. There are four high-level
+things we need to configure to run an experiment: our dataset
+configuration, our training configuration, our model architecture
+configuration, and our optimizer configuration. We'll walk through how
+we set up each of these configurations within our
+<code>paper_classification.yaml</code> experiment
+configuration file. First, let's start with our dataset configuration.
+Add the following lines to describe our dataset configuration:</p>
+<pre><code>dataset:
+  format: PyG
+  name: Cora
+  task: node
+  task_type: classification
+  transductive: true
+  split: [0.8, 0.2]
+  transform: none
+</code></pre>
+<p>Here, we specify that the dataset is in PyG format and that the dataset
+to use is Cora. We then specify that the dataset's task is node
+classification. We divide our data into an 80/20 train/test split, and
+we specify that our task is transductive. GraphGym further allows
+<em>transforms</em> to be applied to your dataset prior to training; however,
+for this task we will not apply any transforms to our dataset.</p>
+<p>The next step is to add our training configuration. Add the following
+lines to the configuration file:</p>
+<pre><code>train:
+  batch_size: 32
+  eval_period: 20
+  ckpt_period: 100
+</code></pre>
+<p>This specifies that a batch size of 32 should be used during training,
+and that evaluation should be performed every 20 epochs, with a
+checkpoint of our model weights saved every 100 epochs.</p>
+<p>Our model architecture design and configuration is up next --- add the
+following lines to the configuration file:</p>
+<pre><code>model:
+  type: gnn
+  loss_fun: cross_entropy
+  edge_decoding: dot
+  graph_pooling: add
+gnn:
+  layers_pre_mp: 1
+  layers_mp: 2
+  layers_post_mp: 1
+  dim_inner: 256
+  layer_type: generalconv
+  stage_type: stack
+  batchnorm: true
+  act: prelu
+  dropout: 0.0
+  agg: add
+</code></pre>
+<p>These lines let GraphGym know to use a GNN architecture with four
+layers: two for message passing, and one each for before and after
+message passing. Each layer is a convolutional layer, stacked on top of
+each other, with sum aggregation. The GNN architecture has a hidden size
+(<code>dim_inner</code>) of 256. Batch normalization and
+PReLU activation function layers are used. Note that Dropout layers can
+be used in GraphGym; however, for this model we do not use any Dropout.</p>
+<p>The model uses a dot product operation to obtain edge embeddings. Since
+our problem is a classification problem, we calculate the model's loss
+using a cross-entropy loss function.</p>
+<p>Finally, add the following lines to our configuration file to configure
+our optimizer:</p>
+<pre><code>optim:
+  optimizer: adam
+  base_lr: 0.01
+  max_epoch: 400
+</code></pre>
+<p>Here, we tell GraphGym to use an Adam optimizer with a base learning
+rate of 0.01. We further tell GraphGym to train our model for up to 400
+epochs.</p>
+<p>Putting it all together, our complete experiment configuration file
+looks like:</p>
+<pre><code>out_dir: results
+dataset:
+  format: PyG
+  name: Cora
+  task: node
+  task_type: classification
+  transductive: true
+  split: [0.8, 0.2]
+  transform: none
+train:
+  batch_size: 32
+  eval_period: 20
+  ckpt_period: 100
+model:
+  type: gnn
+  loss_wqfun: cross_entropy
+  edge_decoding: dot
+  graph_pooling: add
+gnn:
+  layers_pre_mp: 1
+  layers_mp: 2
+  layers_post_mp: 1
+  dim_inner: 256
+  layer_type: generalconv
+  stage_type: stack
+  batchnorm: true
+  act: prelu
+  dropout: 0.0
+  agg: add
+optim:
+  optimizer: adam
+  base_lr: 0.01
+  max_epoch: 400
+</code></pre>
+<blockquote><p>💡 If you are interested in exploring additional and more advanced
+experiment configuration options, or if you are interested in learning
+what the default values for the configuration options are, you can
+find the full list of experiment configuration options and their
+default values
+<a href="https://github.com/snap-stanford/GraphGym/blob/master/graphgym/config.py">here</a>.</p>
+</blockquote>
+<p>Now that we have finished setting up the <code>paper_classification.yaml</code> experiment configuration file, we are all set to run
+the experiment! To run the experiment, run the below line in your shell.
+(As a reminder, you should still be in the <code>GraphGym/</code> directory.)</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>run/main.py<span class="w"> </span>--cfg<span class="w"> </span>paper_classification.yaml<span class="w"> </span>--repeat<span class="w"> </span><span class="m">3</span>
+</pre></div>
+<p>This runs GraphGym with our experiment configuration
+(<code>--cfg paper_classification.yaml</code>). To make our
+experiment resilient to randomness, GraphGym allows us to optionally run
+our experiment multiple times, with different random seeds. We can
+specify how many times we would like to run our experiment with the
+optional command-line flag: <code>--repeat [num_times_to_run]</code>. Here, we run our experiment three times, each time with a
+different random seed, by adding <code>—-repeat 3</code>.</p>
+<p>Once GraphGym finishes running our experiment, the experiment results
+will be automatically saved in a directory named
+<code>results/paper_classification/</code>. (Remember that
+we specified within our <code>paper_classification.yaml</code> configuration file that our experiment results should be saved in an
+output directory named <code>results</code>.)</p>
+<p>When you enter this directory, you should see a few different
+subdirectories. Since we ran our experiment three times, you should see
+three numbered subdirectories (e.g.
+<code>results/paper_classification/2/</code>), with each
+subdirectory containing the experiment results for a run on a different
+random seed. You should also see a subdirectory
+<code>results/paper_classification/agg/</code>. This
+subdirectory contains the experiment results aggregated over all the
+random seeds.</p>
+<h1><strong>Running a Batch of Experiments</strong> </h1>
+<p>So far we've been able to use GraphGym to run a single experiment. This
+allows us to easily test our chosen set of configurations and evaluate
+the performance of this combination of model architecture, training,
+optimization, and dataset options. But to get the best-performing model,
+we need to find the configuration options that lead to the best
+experiment performance. To do this, we must repeatedly vary our
+experiment configurations and see whether the changes improve or reduce
+our model's performance.</p>
+<p>This can take a while! And doing this by hand is particularly
+time-consuming. Fortunately, GraphGym allows us to quickly test
+thousands of different configuration options in parallel, enabling us to
+easily find the best designs.</p>
+<p>The first step is to create a <em>base file</em> for your experiments. This is
+the set of initial configuration options which GraphGym will modify to
+explore different experiment configurations. We can use the
+<code>paper_classification.yaml</code> file we created in
+the previous section as our base file.</p>
+<p>The next step is to create a <em>grid file</em>. This file lists the
+configuration modifications which GraphGym will explore. Within the
+file, we provide a list of possible values which we would like to try
+out for each of the configuration options which we would like to
+experiment with. To get started, let's create a new file within the
+<code>GraphGym/</code> directory named <code>grid.txt</code>.</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>grid.txt
+</pre></div>
+<p>Next, open up the newly-created <code>grid.txt</code> file
+in your editor of choice. Add the following lines to <code>grid.txt</code>:</p>
+<pre><code>train.batch_size batch_size [8,16,32,64,128]
+gnn.dim_inner dim_inner [32,64,128,256,512]
+gnn.act activation ["relu","prelu","elu"]
+</code></pre>
+<p>Each line specifies a different configuration option which we would like
+to experiment with. Here, we specify that we would like to test
+modifications to three configuration options: the training batch size,
+the hidden size (<code>dim_inner</code>) of the GNN, and
+the activation function used in the GNN.</p>
+<p>Each line contains three values, separated by spaces. The first value on
+the left is the name of the configuration option which we would like to
+vary. This should be the same name as in your base file
+(<code>paper_classification.yaml</code>).</p>
+<p>The second value in the middle is an <em>alias</em> for the name of the
+configuration option --- it's a more readable version of the official
+name of the configuration option which GraphGym will use to refer to the
+configuration option. You can alias each configuration option anything
+you like.</p>
+<p>The third value on the right is the list of values to try out for that
+configuration option. Here, we specify lists of different numbers to try
+out for the batch size and GNN hidden size, and a list of different
+activation functions to try out for the GNN activation function.</p>
+<blockquote><p>💡 There is one important formatting rule when writing your grid.txt
+file --- make sure your file contains no spaces except for the spaces
+separating each of the three values.</p>
+</blockquote>
+<p>Using GraphGym, we can generate a bunch of experiment configuration
+files from our base file and grid file. Each configuration file will
+specify the configuration options for one experiment, where each
+experiment is a modification of your base experiment according to the
+modifications specified by your grid file. To generate your experiment
+configuration files, make sure you are in the <code>GraphGym/</code> directory and run the following command in your shell:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>run/configs_gen.py<span class="w"> </span>--config<span class="w"> </span>paper_classification.yaml<span class="w"> </span>--grid<span class="w"> </span>grid.txt<span class="w"> </span>--out_dir<span class="w"> </span>configs
+</pre></div>
+<p>This generates the many experiment configuration files from our base
+file (<code>paper_classification.yaml</code>) and our grid
+file (<code>grid.txt</code>) and stores them in a
+subdirectory named <code>configs/</code>.</p>
+<p>Now that we have generated all of our experiment configuration files, we
+are all set to run our experiments! GraphGym allows us to easily run all
+of our experiments and parallelize our experiment runs. To run the
+experiments, run the following command in your shell:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>bash<span class="w"> </span>run/parallel.sh<span class="w"> </span>configs/paper_classification_grid_grid<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">10</span>
+</pre></div>
+<p>Let's unpack this command. This command runs experiments for each of our
+many generated experiment configuration files
+(<code>configs/paper_classification_grid_grid</code>). Each
+experiment is run <code>3</code> times, and <code>10</code> experiment runs are conducted in parallel at a time (if
+you have a single GPU this last number should most likely be 1).</p>
+<p>Once GraphGym finishes running our many experiments, the experiment
+results will be automatically saved in a directory named
+<code>results/paper_classification_grid_grid/</code>.
+Within this directory, you should see a subdirectory for each of your
+individual experiment runs (for each random seed). You should also see a
+subdirectory <code>results/paper_classification_grid_grid/agg/</code>. This subdirectory contains the experiment results for each
+of your differently configured experiments aggregated over all the
+random seeds.</p>
+<blockquote><p>💡 For more information about the scripts used in this section, please
+see the Appendix at the end of this blog post.</p>
+</blockquote>
+<h1><strong>Creating and Using Custom GraphGym Modules</strong></h1>
+<p>As you have seen so far, GraphGym is a very powerful and useful
+framework! Using GraphGym, we can easily explore GNN designs in parallel
+from a range of configuration options in order to find the best GNN
+design for our task. But what if we would like to use a configuration
+option which GraphGym doesn't support? Maybe we have an idea for a new
+activation function or a new model architecture --- what do we do then?</p>
+<p>Thankfully, GraphGym is a very flexible framework! One big highlight of
+GraphGym is that it allows users to easily register custom modules.
+Let's explore how we can create custom modules for our paper
+classification task.</p>
+<p>To start, in our current grid file, we explore three activation
+functions: "relu", "prelu" and "elu". But what if we want to use a new
+activation function which GraphGym doesn't support? Let's try adding a
+new activation function: "tanh".</p>
+<p>To do so, we need to create a file containing the code for our new
+activation function. GraphGym will automatically support any new modules
+which we add to the <code>graphgym/contrib/</code>
+directory. Within the <code>graphgym/contrib/</code>
+directory, you should see multiple subdirectories, such as <code>act/</code>, <code>layer/</code>, and
+<code>optimizer/</code>. Each subdirectory corresponds to a
+different type of module which we can create custom modules for. For
+example, custom activation functions should be stored in the
+<code>graphgym/contrib/act/</code> directory.</p>
+<p>Go ahead and create a new <code>tanh.py</code> file to
+store our custom tanh activation function:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>graphgym/contrib/act/tanh.py
+</pre></div>
+<p>Using your editor of choice, add the following lines to <code>tanh.py</code> to create a custom tanh activation function:</p>
+<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">graphgym.config</span> <span class="kn">import</span> <span class="n">cfg</span>
+<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_act</span>
+
+<span class="n">register_act</span><span class="p">(</span><span class="s1">&#39;tanh&#39;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">())</span>
+</pre></div>
+<p>And that's it! We're ready to use our custom tanh activation function.
+Since we named our activation function "tanh" in <code>register_act()</code>, to specify our activation function, you should
+refer to it as "tanh" in our configuration files. For example, to
+explore the addition of our tanh activation function within our
+experiment batch, we can modify the corresponding line in <code>grid.txt</code> to include our "tanh" activation function:</p>
+<pre><code>gnn.act activation ["relu","prelu","elu","tanh"]
+</code></pre>
+<p>Now when you run an experiment batch to find the best performing GNN for
+classifying academic papers, your experiments will try using the "tanh"
+function as well. Pretty neat!</p>
+<h1><strong>Advanced: Neural Architecture Search Example</strong> </h1>
+<blockquote><p>💡 For our more advanced readers, in this section we provide an example
+of a larger custom creation to illustrate the power of GraphGym. You
+are welcome to skip this section if you are more interested in the
+high-level approach to GraphGym, but we highly recommend reading it to
+get an idea of how larger custom modules can be created with GraphGym.</p>
+</blockquote>
+<p>In this more advanced section, we will walk through an example of how to
+create larger custom modules with GraphGym. We will create a Neural
+Architecture Search (NAS) model and, in the process, create a custom
+config and a custom GNN model within GraphGym. If you would like to view
+the complete code, feel free to explore <a href="https://github.com/rdyro/CS224W-Final-Project-GraphGym/blob/main/experiment.ipynb">this
+notebook</a>.</p>
+<p>Neural Architecture Search (NAS) is an automated process of designing
+neural network architectures, which can perform a specific task with
+high accuracy. NAS algorithms work by searching through a vast space of
+possible neural network architectures to find the best performing one.
+Typically, this process is guided by a reinforcement learning algorithm
+or a genetic algorithm, which evaluates the performance of each
+candidate architecture on a given task and then selects the best
+performing ones for further exploration. Random NAS is pretty much as
+good as genetic or reinforcement learning algorithms in practice, and
+GraphGym supports random NAS. We can use GraphGym to easily explore the
+search space of candidate architectures.</p>
+<p>To do so, we need to create two custom GraphGym modules: a custom config
+and a custom GNN model. At a high level, we will use GraphGym to
+generate a batch of experiments, where each experiment corresponds to a
+different model architecture. We will define the possible components of
+our model architecture in a custom config file. Our custom GNN model
+will connect the components of any given model architecture together and
+output the results. Then, when we use GraphGym to run the various
+experiments, different components will be tried within our custom GNN
+model, and the best-performing GNN model will be saved.</p>
+<p>Let's get started by creating the custom config. A config defines a set
+of configurations which GraphGym can use during experiments. For
+example, in our paper classification experiments, we used a few
+pre-defined configs such as <code>dataset:</code>,
+<code>model:</code>, <code>gnn:</code>, and
+<code>optim:</code>. In our custom config, we will define a
+set of configurable GNN model components (nodes and activation
+functions) which our NAS can experiment with.</p>
+<p>As a reminder, within the <code>graphgym/contrib/</code>
+directory, you should see multiple subdirectories, such as <code>act/</code>, <code>layer/</code>, and
+<code>optimizer/</code>. Go ahead and create a new file
+named <code>nas_config.py</code> within the
+<code>graphgym/config/</code> subdirectory.</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>graphgym/contrib/config/nas_config.py
+</pre></div>
+<p>Next, using your editor of choice, go ahead and add the following lines
+to the file to create our custom config.</p>
+<div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">yacs.config</span> <span class="kn">import</span> <span class="n">CfgNode</span> <span class="k">as</span> <span class="n">CN</span>
+<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_config</span>
+
+<span class="k">def</span> <span class="nf">set_cfg_nas</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span> <span class="o">=</span> <span class="n">CN</span><span class="p">()</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node0</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node1</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node2</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node3</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
+
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_0_1_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_0_2_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_0_3_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_1_2_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_1_3_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node_2_3_act</span> <span class="o">=</span> <span class="s2">&quot;tanh&quot;</span>
+
+<span class="n">register_config</span><span class="p">(</span><span class="s2">&quot;nas&quot;</span><span class="p">,</span> <span class="n">set_cfg_nas</span><span class="p">)</span>
+</pre></div>
+<p>Since we named our config "nas" in <code>register_config()</code>, within our experiment configuration file, you should refer to
+our config as <code>nas:</code>. Within the config, we
+define individual configurations such as <code>node0</code>, <code>node1</code>, and <code>node_1_3_act</code> and initialize default values for each of them (in case the
+configuration is not explicitly defined within our experiment
+configuration file).</p>
+<p>Once we have created our custom config, we can use it in our experiment
+configuration files! To use our custom config, you can specify it as
+follows within your experiment configuration file:</p>
+<pre><code>...
+# nas config
+nas:
+  node_0_1_act: tanh
+  node_0_2_act: tanh
+  node_0_3_act: tanh
+  node_1_2_act: tanh
+  node_1_3_act: tanh
+  node_2_3_act: tanh
+  node0: GCN
+  node1: GCN
+  node2: GCN
+  node3: GCN
+...
+</code></pre>
+<p>And our custom config is ready to go!</p>
+<blockquote><p>💡 Fun fact: Creating custom/contrib configs had a bug in it
+previously. One of our team members, Robert, noticed and resolved the
+bug within the GraphGym GitHub repository:
+<a href="https://github.com/snap-stanford/GraphGym/pull/54">https://github.com/snap-stanford/GraphGym/pull/54</a>.</p>
+</blockquote>
+<p>The next step is to create our custom GNN model. As a reminder, our
+custom GNN model will connect together the components specified in our
+experiment configuration file and output the results.</p>
+<p>We will store our custom GNN model in the
+<code>graphgym/contrib/network/</code> directory. Go ahead
+and create a new file within this directory named <code>nasgnn.py</code>.</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>graphgym/contrib/network/nasgnn.py
+</pre></div>
+<p>And we add the following lines in <code>nasgnn.py</code> to
+define our custom NAS GNN model architecture.</p>
+<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="o">...</span>
+<span class="kn">from</span> <span class="nn">graphgym.config</span> <span class="kn">import</span> <span class="n">cfg</span>
+<span class="kn">from</span> <span class="nn">graphgym.models.act</span> <span class="kn">import</span> <span class="n">act_dict</span> <span class="k">as</span> <span class="n">inbuilt_act_dict</span>
+<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_network</span>
+<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">act_dict</span>
+<span class="o">...</span>
+<span class="n">act_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">act_dict</span><span class="p">,</span> <span class="o">**</span><span class="n">inbuilt_act_dict</span><span class="p">,</span> <span class="n">identity</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">NASGNN</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">block_num</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="o">...</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">,</span> <span class="n">x_batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">node_feature</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">edge_index</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">batch</span>
+    <span class="o">...</span>
+
+<span class="n">register_network</span><span class="p">(</span><span class="s2">&quot;nasgnn&quot;</span><span class="p">,</span> <span class="n">NASGNN</span><span class="p">)</span>
+</pre></div>
+<p>Since the main point which we wish to illustrate is how to define a
+custom GNN model architecture within GraphGym, we have removed the inner
+workings of the NAS GNN model architecture from the code cell above for
+the sake of readability. However, if you are interested in reading
+through the code for the NAS GNN model architecture, or are curious to
+copy over the code and try out the architecture yourself, please see our
+Appendix at the end of this blog post or access our complete notebook
+code <a href="https://github.com/rdyro/CS224W-Final-Project-GraphGym">here</a>.</p>
+<p>Since we named our model "nasgnn" in <code>register_network()</code>, within our experiment configuration file, you can specify
+that you would like to use our custom "nasgnn" model by setting the
+following configuration:</p>
+<pre><code>model:
+  type: nasgnn
+</code></pre>
+<p>And there we have it! Our custom config and custom GNN model are ready
+to go. Let's go ahead and run an experiment using our custom modules. As
+before, we start by defining an experiment configuration file. You can
+copy over the experiment configuration file from Part 1 of this
+tutorial, and add the following lines to initialize our custom NAS model
+component configurations:</p>
+<pre><code>...
+# nas config
+nas:
+  node_0_1_act: tanh
+  node_0_2_act: tanh
+  node_0_3_act: tanh
+  node_1_2_act: tanh
+  node_1_3_act: tanh
+  node_2_3_act: tanh
+  node0: GCN
+  node1: GCN
+  node2: GCN
+  node3: GCN
+...
+</code></pre>
+<p>And, as before, we next need to define a grid file to specify which
+values we should explore for our individual configurations within
+different experiments. For simplicity, let's suppose that we only wish
+to vary our custom model component configurations. We might define the
+following grid file:</p>
+<pre><code>nas.node_0_1_act node_0_1_act ["relu","prelu","tanh","identity"]
+nas.node_0_2_act node_0_2_act ["relu","prelu","tanh","identity"]
+nas.node_0_3_act node_0_3_act ["relu","prelu","tanh","identity"]
+nas.node_1_2_act node_1_2_act ["relu","prelu","tanh","identity"]
+nas.node_1_3_act node_1_3_act ["relu","prelu","tanh","identity"]
+nas.node_2_3_act node_2_3_act ["relu","prelu","tanh","identity"]
+nas.node0 node0 ["GCN","GAT","GraphSage","Identity"]
+nas.node1 node1 ["GCN","GAT","GraphSage","Identity"]
+nas.node2 node2 ["GCN","GAT","GraphSage","Identity"]
+nas.node3 node3 ["GCN","GAT","GraphSage","Identity"]
+</code></pre>
+<p>Within this grid file, we specify that GraphGym should try out four
+different activation functions for each of our six activation
+configurations and four different GNN nodes for each of our four node
+configurations.</p>
+<p>However, here we run into a small issue! By default, when we run
+GraphGym on a batch of experiments, it will try out every combination of
+possible values as defined in our grid file. However, in this case, the
+number of combinations this grid defines is:</p>
+<p><img src="../../images/graphgym_space_size.png" alt=""></p>
+<p>This will take forever to explore with GraphGym!</p>
+<p>Not all hope is lost however. When we run GraphGym on a batch of
+experiments, we can set an optional command-line flag which specifies
+that GraphGym should only run on a random sample of combinations defined
+in our grid file. This allows us to randomly subsample our configuration
+space and approach the optimal set of configurations in significantly
+less time. For example, to specify that GraphGym should sample 200
+random combinations of configurations, add the following command-line
+flag when generating experiment configuration files in batch:</p>
+<pre><code>--sample --sample_num 200
+</code></pre>
+<p>Using this command-line flag, as you might recall from Section 2 of this
+blog post, the complete line which you can run in your shell to generate
+200 experiment configuration files with random combinations of
+configurations is as follows:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>run/configs_gen.py<span class="w"> </span>--config<span class="w"> </span>configs/nas.yaml<span class="w"> </span>--grid<span class="w"> </span>configs/nas_grid.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--sample<span class="w"> </span>--sample_num<span class="w"> </span><span class="m">200</span>
+</pre></div>
+<p>And then, as in Section 2 of this blog post, you can run our
+newly-created batch of experiments by running the following line in your
+shell. (As a reminder, the <code>5</code> below refers to
+how many times we run each individual experiment on different random
+seeds, and the <code>10</code> below refers to how many
+jobs we will run in parallel.)</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>bash<span class="w"> </span>run/parallel.sh<span class="w"> </span>configs/nas_grid_nas_grid<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="m">10</span>
+</pre></div>
+<p>After running 200 samples in our search space and averaging the results,
+we select the best GNN model architecture based on the final
+<strong>validation accuracy</strong> --- we are trying to generate architectures that
+generalize well and do not overfit. This was the winning GNN
+architecture during our run (running 200 samples, 5 times each, took us
+about 3.5h on a consumer GPU).</p>
+<p align="center">
+<img src="/images/graphgym_nas_space.png" />
+<p align="center">
+Figure 2: Diagram of winning GNN architecture during our run
+</p>
+</p><h1><strong>Advanced: Monitoring GraphGym Experiments</strong></h1>
+<blockquote><p>💡 For our more advanced readers, in this section we walk through how
+to monitor GraphGym experiments using both TensorBoard and Ray.
+Monitoring neural network training is a critical step in ensuring that
+the model is learning correctly and making progress towards achieving
+its objective. During the training process, it's essential to monitor
+various metrics such as the loss function, accuracy, and validation
+metrics. By monitoring these metrics, we can adjust our
+hyperparameters, such as learning rate and batch size, to improve the
+performance of our model.</p>
+</blockquote>
+<h2><strong>...with TensorBoard</strong></h2>
+<p>Suppose that we return to our paper classification task and run our
+batch of experiments. Depending on how many configuration combinations
+we define, this might take a while! As our experiments are running, the
+results will continuously aggregate in our results directory, which for
+our paper classification task is
+<code>results/paper_classification_grid_grid</code>.</p>
+<p>We can monitor the progress of our experiments using TensorBoard. (If
+you're unfamiliar with TensorBoard, you can learn more about TensorBoard
+<a href="https://www.tensorflow.org/tensorboard/get_started">here</a>. To
+set up TensorBoard to monitor our GraphGym experiments, after we start
+running our batch of experiments, run the following line in your shell:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>tensorboard<span class="w"> </span>--logdir<span class="w"> </span>results/paper_classification_grid_grid
+</pre></div>
+<p>Then, all you have to do is navigate to <a href="http://localhost:6006/">http://localhost:6006/</a>. There,
+you should see the TensorBoard dashboard displayed, allowing you to
+easily monitor the progress of your experiments. Pretty neat!</p>
+<h2><strong>...with Ray</strong></h2>
+<p><a href="https://www.ray.io/">Ray</a> is a great tool for parallelizing
+and monitoring hyperparameter tuning. Here, we demonstrate how to
+quickly set up Ray to parallelize and monitor GraphGym experiments. The
+first step is to set up Ray. We won't go into the details about how to
+set up Ray here, but if you are interested in learning more about Ray
+and how to set it up, please follow the instructions
+<a href="https://www.ray.io/">here</a>. Assuming you have Ray set up on
+your local machine, let's dive into how we can run Ray for a batch of
+experiments.</p>
+<p>Suppose that we have generated our set of experiment configuration files
+as usual. As a reminder, we can generate our set of experiment
+configuration files by running the following line in shell:</p>
+<div class="hll"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>run/configs_gen.py<span class="w"> </span>--config<span class="w"> </span>configs/classic.yaml<span class="w"> </span>--grid<span class="w"> </span>configs/classic_grid.txt
+</pre></div>
+<p>Now that our experiment configuration files are ready to go, let's start
+writing a script in Python to set up Ray to monitor our batch of
+experiments. As a reminder, we will not discuss the Ray code in depth as
+we assume some initial knowledge about Ray and how to set it up in
+Python. The first step is to create a new file to store our Python
+script and add the following lines of code:</p>
+<div class="hll"><pre><span></span><span class="n">classic_config</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;configs&quot;</span> <span class="o">/</span> <span class="s2">&quot;classic.yaml&quot;</span>
+<span class="n">classic_grid</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;configs&quot;</span> <span class="o">/</span> <span class="s2">&quot;classic_grid.txt&quot;</span>
+<span class="k">assert</span> <span class="n">classic_config</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+<span class="k">assert</span> <span class="n">classic_grid</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gen_configs</span><span class="p">(</span><span class="n">classic_config</span><span class="p">,</span> <span class="n">classic_grid</span><span class="p">))</span>
+<span class="n">config_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;configs&quot;</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">classic_config</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">_grid_</span><span class="si">{</span><span class="n">classic_grid</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="k">assert</span> <span class="n">config_dir</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+<span class="n">config_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">glob</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">config_dir</span> <span class="o">/</span> <span class="s2">&quot;*.yaml&quot;</span><span class="p">)))</span>
+<span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">config_paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</pre></div>
+<p>So far, we have generated and discovered all of our experiment
+configuration files. Next, add the following lines of code:</p>
+<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">experiment_fn</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
+    <span class="c1"># our custom config from the ray config</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;custom_config&quot;</span><span class="p">]</span>
+    <span class="n">repeats</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;repeats&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">trial_name</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;trial_name&quot;</span><span class="p">]</span>
+    <span class="n">grid_name</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;grid_name&quot;</span><span class="p">]</span>
+
+    <span class="c1"># write the config file passed by dict (since we want to allow distributed ray clusters)</span>
+    <span class="n">config_file_contents</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;config_file_contents&quot;</span><span class="p">]</span>
+    <span class="n">config_file_contents</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="nb">dict</span><span class="p">())</span>
+    <span class="n">dataset_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;/tmp/graphgym_datasets&quot;</span><span class="p">)</span>
+    <span class="n">dataset_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">config_file_contents</span><span class="p">[</span><span class="s2">&quot;dataset&quot;</span><span class="p">][</span><span class="s2">&quot;dir&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">)</span>
+    <span class="n">config_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;configs&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="n">grid_name</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">trial_name</span><span class="si">}</span><span class="s2">.yaml&quot;</span>
+    <span class="n">config_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">config_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">config_file_contents</span><span class="p">))</span>
+
+    <span class="c1"># run the actual experiment</span>
+    <span class="n">run_config</span><span class="p">(</span><span class="n">config_path</span><span class="p">,</span> <span class="n">repeats</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;verbose&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+
+    <span class="c1"># find the results</span>
+    <span class="n">result_path</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">Path</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;(^|/)configs/&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\1results/&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">config_path</span><span class="o">.</span><span class="n">parent</span><span class="p">)))</span> <span class="o">/</span> <span class="n">trial_name</span>
+    <span class="p">)</span>
+    <span class="n">all_stats</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;train&quot;</span><span class="p">,</span> <span class="s2">&quot;val&quot;</span><span class="p">,</span> <span class="s2">&quot;test&quot;</span><span class="p">]:</span>
+        <span class="n">stats_file</span> <span class="o">=</span> <span class="n">result_path</span> <span class="o">/</span> <span class="s2">&quot;agg&quot;</span> <span class="o">/</span> <span class="n">key</span> <span class="o">/</span> <span class="s2">&quot;stats.json&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Looking under </span><span class="si">{</span><span class="n">stats_file</span><span class="si">}</span><span class="s2"> for stats file&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stats_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">all_stats</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">read_graphgym_stats_file</span><span class="p">(</span><span class="n">stats_file</span><span class="p">)</span>
+
+    <span class="c1"># finally, we&#39;ll return the final result</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">all_stats</span><span class="p">)</span>
+</pre></div>
+<p>We won't dive into the internals of the <code>experiment_fn()</code> function too closely. At a high-level, this function runs a
+single experiment and outputs the results. It has three main parts.
+First, experiment configuration files are reformatted as dictionaries
+using YAML representation. This is necessary in order to run Ray on a
+cluster. Second, we call the function <code>run_config()</code> to run our experiment using the reformatted configuration file.
+Third, we extract the results from the resulting results files and
+return the results as a dictionary.</p>
+<p>The next step is to set up a set of Ray experiments, where each
+experiment is set up to call our <code>experiment_fn()</code> function for an individual experiment configuration file. We can do
+so with the following lines of code:</p>
+<div class="hll"><pre><span></span><span class="c1"># we will convert config_paths into a list of configs with config read out using yaml</span>
+<span class="n">configs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;repeats&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">&quot;config_file_contents&quot;</span><span class="p">:</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()),</span>
+        <span class="s2">&quot;trial_name&quot;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span><span class="p">,</span>
+        <span class="s2">&quot;grid_name&quot;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">stem</span><span class="p">,</span>
+        <span class="s2">&quot;verbose&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">config_path</span> <span class="ow">in</span> <span class="n">config_paths</span>
+<span class="p">]</span>
+
+<span class="c1"># we&#39;ll only specify one field, custom_config because we&#39;re generating samples ourselves</span>
+<span class="n">ray_configs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;custom_config&quot;</span><span class="p">:</span> <span class="n">ray</span><span class="o">.</span><span class="n">tune</span><span class="o">.</span><span class="n">grid_search</span><span class="p">(</span><span class="n">configs</span><span class="p">)}</span>
+
+<span class="c1"># by specifying resources, we&#39;re implicitly specifying how many jobs should run in parallel</span>
+<span class="n">resources_per_trial</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;cpu&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">}</span>
+
+<span class="c1"># now, we define experiments using our ray function</span>
+<span class="n">experiments</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">tune</span><span class="o">.</span><span class="n">Experiment</span><span class="p">(</span>
+    <span class="s2">&quot;graphgym_experiment&quot;</span><span class="p">,</span>
+    <span class="n">experiment_fn</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">ray_configs</span><span class="p">,</span>
+    <span class="n">resources_per_trial</span><span class="o">=</span><span class="n">resources_per_trial</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+<p>And, at long last, we have to run our experiments! Add the following
+line of code to run our experiments using Ray:</p>
+<div class="hll"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">tune</span><span class="o">.</span><span class="n">run_experiments</span><span class="p">(</span><span class="n">experiments</span><span class="o">=</span><span class="n">experiments</span><span class="p">)</span>
+</pre></div>
+<p>Finally, let's collect the experiment results (which we collected in
+<code>experiment_fn()</code>) and output the results as
+they come in. We can do so with the following code:</p>
+<div class="hll"><pre><span></span><span class="k">for</span> <span class="n">experiment</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">experiment</span><span class="o">.</span><span class="n">config</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Validation accuracy was </span><span class="si">{</span><span class="n">experiment</span><span class="o">.</span><span class="n">last_result</span><span class="p">[</span><span class="s1">&#39;val&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;accuracy&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;#######################&quot;</span><span class="p">)</span>
+</pre></div>
+<p>Go ahead and run the complete Python script to run the batch of
+experiments using Ray. After you run the script, you can monitor the
+progress of the experiments in the Ray dashboard at
+<a href="http://localhost:8265/">localhost:8265</a>.</p>
+<p align="center">
+<img src="/images/graphgym_ray_console.png" />
+<p align="center">
+Figure 3: Screenshot of Ray dashboard
+</p>
+</p><h1><strong>In Conclusion...</strong></h1>
+<p>Many graph applications use GNNs to learn embeddings of nodes and/or
+edges, which can be used for downstream tasks, such as our paper
+classification problem. However, with thousands of possible GNN models
+to choose from, it can be a daunting task to design the right GNN
+architecture for the job as the best GNN design for different tasks can
+vary significantly.</p>
+<p>As we have seen, GraphGym is a powerful tool that lets us easily explore
+the GNN design space for a problem. We have walked through how we can
+use GraphGym to explore thousands of different GNN designs in parallel.
+Furthermore, we have shown through example the flexibility of GraphGym
+to incorporate custom modules as necessary, ensuring that we can use
+GraphGym for various graph applications. GraphGym experiments can be
+integrated with many state-of-the-art machine learning infrastructure
+tools, such as monitoring tools TensorBoard and Ray. Overall, we hope we
+have demonstrated the power and flexibility of GraphGym, which make it
+an ideal choice for designing GNN models.</p>
+<h2><strong>To see the complete code used in this tutorial blog post, please see our GitHub link</strong> <a href="https://github.com/rdyro/CS224W-Final-Project-GraphGym"><strong>here</strong></a><strong>.</strong></h2>
+<h1>References</h1>
+<p>[1] You, J., Ying, R., &amp; Leskovec, J. (2020) Design Space for Graph
+Neural Networks. <em>NeurIPS</em>. <a href="https://arxiv.org/abs/2011.08843">https://arxiv.org/abs/2011.08843</a></p>
+<p>[2] Fey, M. &amp; Lenssen, J. E. (2019) Fast Graph Representation Learning
+with PyTorch Geometric. <em>arXiv</em>. <a href="https://arxiv.org/abs/1903.02428">https://arxiv.org/abs/1903.02428</a></p>
+<p>[3] Bojchevski, A. &amp; Gunnemann, S. (2017) Deep Gaussian Embedding of
+Graphs: Unsupervised Inductive Learning via Ranking. <em>arXiv</em>.
+<a href="https://arxiv.org/abs/1707.03815">https://arxiv.org/abs/1707.03815</a></p>
+<p>[4] Kingma, D. P. &amp; Ba, J. (2014) Adam: A Method for Stochastic
+Optimization. <em>arXiv</em>. <a href="https://arxiv.org/abs/1412.6980">https://arxiv.org/abs/1412.6980</a></p>
+<p>[5] Liu, H., Simonyan, K., &amp; Yang, Y. (2018). Darts: Differentiable
+architecture search. <em>arXiv preprint arXiv:1806.09055</em>. Chicago</p>
+<h1>Appendix</h1>
+<h1>A. GraphGym script details</h1>
+<p>1. <code>GraphGym/run/main.py</code></p>
+<div class="hll"><pre><span></span>usage:<span class="w"> </span>main.py<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span>--cfg<span class="w"> </span>CFG_FILE<span class="w"> </span><span class="o">[</span>--repeat<span class="w"> </span>REPEAT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--mark_done<span class="o">]</span><span class="w"> </span>...
+
+GraphGym
+
+positional<span class="w"> </span>arguments:
+<span class="w">  </span>opts<span class="w">             </span>See<span class="w"> </span>graphgym/config.py<span class="w"> </span><span class="k">for</span><span class="w"> </span>remaining<span class="w"> </span>options.
+
+optional<span class="w"> </span>arguments:
+<span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">       </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<span class="w">  </span>--cfg<span class="w"> </span>CFG_FILE<span class="w">   </span>The<span class="w"> </span>configuration<span class="w"> </span>file<span class="w"> </span>path.
+<span class="w">  </span>--repeat<span class="w"> </span>REPEAT<span class="w">  </span>The<span class="w"> </span>number<span class="w"> </span>of<span class="w"> </span>repeated<span class="w"> </span>jobs.
+<span class="w">  </span>--mark_done<span class="w">      </span>Mark<span class="w"> </span>yaml<span class="w"> </span>as<span class="w"> </span><span class="k">done</span><span class="w"> </span>after<span class="w"> </span>a<span class="w"> </span>job<span class="w"> </span>has<span class="w"> </span>finished.
+</pre></div>
+<p>2. <code>GraphGym/run/configs_gen.py</code></p>
+<div class="hll"><pre><span></span>usage:<span class="w"> </span>configs_gen.py<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>CONFIG<span class="o">]</span><span class="w"> </span>--grid<span class="w"> </span>GRID<span class="w"> </span><span class="o">[</span>--sample<span class="o">]</span>
+<span class="w">                      </span><span class="o">[</span>--sample_alias<span class="w"> </span>SAMPLE_ALIAS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sample_num<span class="w"> </span>SAMPLE_NUM<span class="o">]</span>
+<span class="w">                      </span><span class="o">[</span>--out_dir<span class="w"> </span>OUT_DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config_budget<span class="w"> </span>CONFIG_BUDGET<span class="o">]</span>
+
+optional<span class="w"> </span>arguments:
+<span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<span class="w">  </span>--config<span class="w"> </span>CONFIG<span class="w">       </span>the<span class="w"> </span>base<span class="w"> </span>configuration<span class="w"> </span>file<span class="w"> </span>used<span class="w"> </span><span class="k">for</span><span class="w"> </span>edit
+<span class="w">  </span>--grid<span class="w"> </span>GRID<span class="w">           </span>configuration<span class="w"> </span>file<span class="w"> </span><span class="k">for</span><span class="w"> </span>grid<span class="w"> </span>search
+<span class="w">  </span>--sample<span class="w">              </span>whether<span class="w"> </span>perform<span class="w"> </span>random<span class="w"> </span>sampling
+<span class="w">  </span>--sample_alias<span class="w"> </span>SAMPLE_ALIAS
+<span class="w">                        </span>configuration<span class="w"> </span>file<span class="w"> </span><span class="k">for</span><span class="w"> </span>sample<span class="w"> </span><span class="nb">alias</span>
+<span class="w">  </span>--sample_num<span class="w"> </span>SAMPLE_NUM
+<span class="w">                        </span>Number<span class="w"> </span>of<span class="w"> </span>random<span class="w"> </span>samples<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>space
+<span class="w">  </span>--out_dir<span class="w"> </span>OUT_DIR<span class="w">     </span>output<span class="w"> </span>directory<span class="w"> </span><span class="k">for</span><span class="w"> </span>generated<span class="w"> </span>config<span class="w"> </span>files
+<span class="w">  </span>--config_budget<span class="w"> </span>CONFIG_BUDGET
+<span class="w">                        </span>the<span class="w"> </span>base<span class="w"> </span>configuration<span class="w"> </span>file<span class="w"> </span>used<span class="w"> </span><span class="k">for</span><span class="w"> </span>matching
+<span class="w">                        </span>computation
+</pre></div>
+<p>3. <code>GraphGym/run/agg_batch.py</code></p>
+<div class="hll"><pre><span></span>usage:<span class="w"> </span>agg_batch.py<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span>--dir<span class="w"> </span>DIR<span class="w"> </span><span class="o">[</span>--metric<span class="w"> </span>METRIC<span class="o">]</span>
+
+Train<span class="w"> </span>a<span class="w"> </span>classification<span class="w"> </span>model
+
+optional<span class="w"> </span>arguments:
+<span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">       </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<span class="w">  </span>--dir<span class="w"> </span>DIR<span class="w">        </span>Dir<span class="w"> </span><span class="k">for</span><span class="w"> </span>batch<span class="w"> </span>of<span class="w"> </span>results
+<span class="w">  </span>--metric<span class="w"> </span>METRIC<span class="w">  </span>metric<span class="w"> </span>to<span class="w"> </span><span class="k">select</span><span class="w"> </span>best<span class="w"> </span>epoch
+</pre></div>
+<h1>B. Custom Model Code for Neural Architecture Search Example</h1>
+<h2>Detailed NAS implementation</h2>
+<p>Here, we show how we design the custom NAS Graph Neural Network. We
+implement a custom NAS class by:</p>
+<ol>
+<li>generating our network blocks and activation functions from the configuration files</li>
+<li>implementing a custom forward function</li>
+</ol>
+<h2>Custom NAS Network</h2>
+<p>First, we define the blocks in our network</p>
+<div class="hll"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">):</span>
+  <span class="o">...</span>
+  <span class="n">block_num</span> <span class="o">=</span> <span class="n">block_num</span> <span class="k">if</span> <span class="s2">&quot;block_num&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span> <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">block_num</span>       
+  <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>                                                    
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">block_num</span><span class="p">):</span>                                                       
+      <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">build_conv_model</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;node</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">])(</span><span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">))</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">activations</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleDict</span><span class="p">()</span>                                               
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">block_num</span><span class="p">):</span>                                                       
+      <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">block_num</span><span class="p">):</span>                                            
+          <span class="bp">self</span><span class="o">.</span><span class="n">activations</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">act_dict</span><span class="p">[</span><span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;node_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">_act&quot;</span><span class="p">]])</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">post_mp</span> <span class="o">=</span> <span class="n">GNNNodeHead</span><span class="p">(</span><span class="n">dim_in</span><span class="o">=</span><span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="o">=</span><span class="n">dim_out</span><span class="p">)</span>
+  <span class="o">...</span>
+</pre></div>
+<p>For activations, we have activations from all previous blocks to all
+subsequent ones.</p>
+<p>Next, we can implement the forward function:</p>
+<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
+  <span class="n">x</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">,</span> <span class="n">x_batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">node_feature</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">edge_index</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">batch</span>
+  <span class="o">...</span>
+  <span class="n">block_inputs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">x</span><span class="p">]]</span> <span class="o">+</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">))]</span>                  
+  <span class="n">latest_output</span> <span class="o">=</span> <span class="n">x</span>                                                                
+  <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">):</span>                                          
+      <span class="c1"># apply the block to all its inputs and sum the output                       </span>
+      <span class="n">block_output</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>                                                          
+          <span class="n">F</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">block</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">),</span> <span class="n">p</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dropout</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">)</span>  
+          <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">block_inputs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>                                                 
+      <span class="p">)</span>                                                                            
+      <span class="c1"># record the latest output (for output)                                      </span>
+      <span class="n">latest_output</span> <span class="o">=</span> <span class="n">block_output</span>                                                 
+      <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">)):</span>                                     
+          <span class="c1"># apply the specified activations to the output of the block for other blocks</span>
+          <span class="n">block_inputs</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activations</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">](</span><span class="n">block_output</span><span class="p">))</span>       
+  <span class="n">x</span> <span class="o">=</span> <span class="n">latest_output</span>
+  <span class="o">...</span>
+</pre></div>
+<p>Within the forward function, we iterate over cells and pass the outputs
+of all previous cells through them.</p>
+<h1>C. Validation Accuracy vs. Iteration Time for Neural Architecture Search Example</h1>
+<p>In our Neural Architecture Search example, we can also plot the
+<strong>validation accuracy</strong> vs <strong>iteration time</strong> which lets us quantify the
+tradeoff between latency and performance of the network. Interestingly
+higher latency networks are more expensive to evaluate but do not
+achieve better performance --- the trend peaks around 0.022 seconds per
+iteration.</p>
+<p>We plot the validation accuracy and iteration time for a classic
+hyperparameter search of the inner dimension of a graph convolution
+network (GCN) --- the simple case.</p>
+<p align="center">
+<img src="/images/graphgym_valid_best.png" />
+<p align="center">
+Figure 4: Graph plotting validation accuracy vs. iteration time
+</p>
+</p><p>We also show the <strong>validation accuracy</strong> vs <strong>epoch</strong> during training
+for a random sample within our NAS search space and the best
+architecture. The best architecture does not overfit!</p>
+<p align="center">
+<img src="/images/graphgym_valid_random.png" />
+<p align="center">
+Figure 5: Graph plotting validation accuracy vs. epoch for a random
+sample within the NAS search space and the best
+architecture
+</p>
+</p>
           </td>
         </tr>
       </tbody>

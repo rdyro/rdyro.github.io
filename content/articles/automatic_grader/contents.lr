@@ -4,7 +4,7 @@ _model: article
 ---
 title: Automatic Grader
 ---
-img: /images/under_construction.png
+img: /images/automatic_grading_logo.svg
 ---
 timestamp: 2023/04/01 00:00
 ---
@@ -13,13 +13,3 @@ authors: Robert Dyro
 summary: Automatic short answer grading with pretrained language models.
 ---
 body:
-
-# Introduction
-
-Automatic Grading in General
-
-# Online Adaptation
-
-# Meta-learning
-
-Two approaches MAML + last layer

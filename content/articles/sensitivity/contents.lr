@@ -4,9 +4,11 @@ _model: article
 ---
 title: Sensitivity analysis using PyTorch and JAX
 ---
-img: /images/under_construction.png
+img: /images/delta.svg
 ---
 timestamp: 2022/02/01 00:00
+---
+external_url: https://rdyro.github.io/sensitivity_torch/
 ---
 authors: Robert Dyro
 ---

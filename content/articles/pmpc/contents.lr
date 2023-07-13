@@ -6,7 +6,9 @@ title: Model Predictive Control
 ---
 timestamp: 2021/01/01 00:00
 ---
-img: /images/under_construction.png
+img: /images/pmpc_states.svg
+---
+external_url: https://github.com/StanfordASL/pmpc
 ---
 authors: Robert Dyro
 ---

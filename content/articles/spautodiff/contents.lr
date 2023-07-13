@@ -6,7 +6,9 @@ title: Sparse Automatic Differentiation
 ---
 timestamp: 2021/06/01 00:00
 ---
-img: /images/under_construction.png
+img: /images/sparse_matrix.svg
+---
+external_url: https://github.com/rdyro/SpAutoDiff.jl
 ---
 authors: Robert Dyro
 ---

@@ -16,15 +16,459 @@
             <h2>CUDA QP Solver</h2><br/><strong>Robert Dyro</strong>
           </td>
           <td style="padding:10px;width:25%;vertical-align:middle">
-            <a href="/images/under_construction.png">
-              <img src="/images/under_construction.png" alt="alttext" width="160" height="auto" />
+            <a href="/images/cuda_qp_solver.svg">
+              <img src="/images/cuda_qp_solver.svg" alt="alttext" width="160" height="auto" />
             </a>
           </td>
         </tr>
         <tr style="width:100px"><td colspan="2"></td></tr>
-        <tr style="width=100%;padding:0px">
+        <tr style="width:100%;padding:0px">
           <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
-            
+            <h1>Heterogenous Batch Quadratic Program Solver in CUDA</h1>
+<p align="center">
+<img src="/images/cuda_qp_solver.svg" style="width:100%;max-width:700px" />
+</p><hr>
+<h2>Introduction</h2>
+<p>I implement a projection-based quadratic program solver (QP) in CUDA and on the
+CPU. The solver is based on the Alternating Direction Method of Multipliers
+(ADMM) algorithm and is implemented in Julia and is non-allocating (does not
+allocate memory dynamically, which helps it run on the GPU without
+modifications). The purpose of this project is (1) to show how the simplest QP
+program solver can be implemented (whose runtime is competitive with existing QP
+solvers) and (2) to learn about CUDA program optimizations when applied to a
+real problem. The solver is implemented in Julia because the language is
+higher-level and faster to write than C++, while its runtime is comparable to
+C++ (often within 0.5x-1.5x). However, the implementation is very low-level to
+work with both in CUDA and on the CPU.</p>
+<p>The solver is a heterogeneous batch solver, meaning that it can solve a batch of
+QPs even if every single one of the problems has a different data, dimension,
+and sparsity structure. Thus, I intentionally implement the solver
+from start to finish within a single routine without making use of batching
+individual steps (e.g., matrix factorization, linear system solve, etc.). I use
+this deliberate generality to differentiate myself from other implementations and
+make the CUDA code optimization more challenging.</p>
+<p>I test the solver on a Model Predictive Control (MPC) problem, an optimal
+control problem of finding the best (trading off tracking and energy
+expenditure) controls to a simple dynamical system to steer it towards a
+specified goal. I compare the CPU and CUDA performance. I find that
+NVIDIA RTX 3090 can solve at most about 4.5 as many problems as a single core of
+Ryzen 7 5800X processor. This is a rather disappointing result, either because
+(i) heterogenous QP solvers are not a good fit for the CUDA architecture (because of
+sequential nature of the linear system solve-operation on which the solver
+relies repeatedly) or (ii) because my CUDA program optimizations could be
+improved.</p>
+<p align="center">
+<img src="/images/cuda_qp_solver/dynamics_solution.svg" style="width:100%;max-width:700px" />
+</p><p>The code is open-sourced here: <a href="https://github.com/rdyro/CUDA_QP_Solver">https://github.com/rdyro/CUDA_QP_Solver</a></p>
+<hr>
+<h2>Quadratic Programming (QP) via Alternating Direction Method of Multipliers (ADMM)</h2>
+<p>A general quadratic program (QP) is defined as:</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} \text{minimize}&amp; ~~ \frac{1}{2} z^T P z + q^T z \\ \text{subject to}&amp; ~~ C z \leq b \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <mtext>minimize</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> </mtd> </mtr> <mtr> <mtd> <mtext>subject to</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>C</mi> <mi>z</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>b</mi> </mtd> </mtr> </mtable> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P"> <mi>P</mi> </math></span> is a symmetric positive definite matrix.</p>
+<p>Because of the type of a QP solver I implement here, I further require that (1)
+there are both upper and lower bound constraints (which is a generalization,
+since one can choose positive or negative infinity for the respective bound) and
+that (2) the matrices <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P"> <mi>P</mi> </math></span> , <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> are sparse (otherwise a dense solver is a more
+efficient software solution).</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} \text{minimize}&amp; ~~ \frac{1}{2} z^T P z + q^T z \\ \text{subject to}&amp; ~~ l \leq C z \leq u \\ \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <mtext>minimize</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> </mtd> </mtr> <mtr> <mtd> <mtext>subject to</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>C</mi> <mi>z</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mtd> </mtr> </mtable> </math></p><h3>The Model Predictive Control (MPC) Test Problem</h3>
+<p>The test problem I consider in this work is the Model Predictive Control (MPC) on a dynamical system with linear dynamics.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" x^{(k+1)} = A x^{(k)} + B u^{(k)} "> <msup> <mi>x</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>=</mo> <mi>A</mi> <msup> <mi>x</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <mi>B</mi> <msup> <mi>u</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="x"> <mi>x</mi> </math></span> is the vector state, <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="u"> <mi>u</mi> </math></span> is the vector control and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="B"> <mi>B</mi> </math></span> are
+arbitrary dense dynamical matrices.</p>
+<h3>Alternating Direction Method of Multipliers (ADMM) Algorithm for Quadratic Programs</h3>
+<p>There are currently two popular methods to solve quadratic optimization programs (with inequalities):</p>
+<ul>
+<li>the <a href="https://en.wikipedia.org/wiki/Interior-point_method">interior-point
+method</a> where the
+inequalities are converted into smooth barriers and are iteratively refined</li>
+<li>the projection-based method, where alternately solve the problem (i) without
+accounting for inequalities and (ii) projecting the optimization variables onto a
+set where inequalities are satisfied<ul>
+<li>this method includes a way to bias the process to converge</li>
+</ul>
+</li>
+</ul>
+<p>The second method is often easier to implement and recently has been enjoying
+success with an extremely high-quality implementation in the form of the
+<a href="https://osqp.org/">OSQP</a> solver. In fact, the implementation here is very
+heavily inspired by the OSQP implementation (and, in the case of the CPU
+version, it reaches the same competitive computational time as OSQP).</p>
+<p>The method used by OSQP is a type of projection-based optimization method called
+Alternating Direction Method of Multipliers (ADMM). An excellent references 
+include these <a href="https://web.stanford.edu/~boyd/papers/pdf/admm_slides.pdf">lecture
+slides</a> and the
+<a href="https://ieeexplore.ieee.org/abstract/document/8263928/">OSQP paper</a>.</p>
+<p><strong>The general ADMM algorithm (page 17 of lecture slides):</strong></p>
+<p>For a split, optimization-and-projection problem, the ADMM algorithm is:</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} \text{minimize}&amp; ~~ f(z) + g(w) \\ \text{subject to}&amp; ~~ C z = w ~~~~~~~ \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <mtext>minimize</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>f</mi> <mo stretchy="false">(</mo> <mi>z</mi> <mo stretchy="false">)</mo> <mo>+</mo> <mi>g</mi> <mo stretchy="false">(</mo> <mi>w</mi> <mo stretchy="false">)</mo> </mtd> </mtr> <mtr> <mtd> <mtext>subject to</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>C</mi> <mi>z</mi> <mo>=</mo> <mi>w</mi> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> </mtd> </mtr> </mtable> </math></p><p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} z^{(k+1)} &amp;= \text{argmin} f(z) + \frac{\rho}{2} \| C z - w^{(k)} + \rho^{-1} y^{(k)} \|_2^2 \\ w^{(k+1)} &amp;= \text{argmin} g(w) + \frac{\rho}{2} \| C z^{(k+1)} - w + \rho^{-1} y^{(k)} \|_2^2 \\ y^{(k+1)} &amp;= y^{(k)} + \rho \left( C z^{(k+1)} - w^{(k+1)} \right) \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <mtext>argmin</mtext> <mi>f</mi> <mo stretchy="false">(</mo> <mi>z</mi> <mo stretchy="false">)</mo> <mo>+</mo> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> </mtr> <mtr> <mtd> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <mtext>argmin</mtext> <mi>g</mi> <mo stretchy="false">(</mo> <mi>w</mi> <mo stretchy="false">)</mo> <mo>+</mo> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <mi>w</mi> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> </mtr> <mtr> <mtd> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <mrow> <mo>(</mo> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>)</mo> </mrow> </mtd> </mtr> </mtable> </math></p><p><strong>Our case:</strong></p>
+<p>In our case:</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} f(z) &amp;= \frac{1}{2} z^T P z + q^T z \\ g(w) &amp;= \begin{cases} 0 ~~~ \text{if} ~ l \leq w \leq u \\ \infty ~~ \text{otherwise} \end{cases} \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <mi>f</mi> <mo stretchy="false">(</mo> <mi>z</mi> <mo stretchy="false">)</mo> </mtd> <mtd> <mi></mi> <mo>=</mo> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> </mtd> </mtr> <mtr> <mtd> <mi>g</mi> <mo stretchy="false">(</mo> <mi>w</mi> <mo stretchy="false">)</mo> </mtd> <mtd> <mi></mi> <mo>=</mo> <mrow> <mo>{</mo> <mtable columnalign="left left" rowspacing=".2em" columnspacing="1em" displaystyle="false"> <mtr> <mtd> <mn>0</mn> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>if</mtext> <mtext>&#xA0;</mtext> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mtd> </mtr> <mtr> <mtd> <mi mathvariant="normal">&#x221E;<!-- ∞ --></mi> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>otherwise</mtext> </mtd> </mtr> </mtable> <mo fence="true" stretchy="true" symmetric="true"></mo> </mrow> </mtd> </mtr> </mtable> </math></p><p>Finding the <em>argmin</em> of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="g(w)"> <mi>g</mi> <mo stretchy="false">(</mo> <mi>w</mi> <mo stretchy="false">)</mo> </math></span> is equivalent to projecting <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="w"> <mi>w</mi> </math></span> onto the set
+where the inequalities are satisfied (because <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="w"> <mi>w</mi> </math></span> is scaled by identity in <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\frac{\rho}{2} \| C z - w + y \|_2^2"> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <mi>w</mi> <mo>+</mo> <mi>y</mi> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </math></span> ). This is extremely simple (which is why
+ADMM is so well-suited here).</p>
+<p>The updates then take the form</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} z^{(k+1)} &amp;= \text{argmin} \frac{1}{2} z^T P z + q^T z + \frac{\rho}{2} \| C z - w^{(k)} + \rho^{-1} y^{(k)} \|_2^2 &amp; = \left( P + \rho C^T C\right)^{-1} \left( C^T (w - y) - q\right) \\ w^{(k+1)} &amp;= \text{argmin}_{l \leq w \leq u} \frac{\rho}{2} \| C z^{(k+1)} - w + \rho^{-1} y^{(k)} \|_2^2 &amp;= \text{min}(u, ~ \text{max}(l, ~ C z^{(k+1)} + \rho^{-1} y^{(k)})) \\ y^{(k+1)} &amp; &amp;= y^{(k)} + \rho (C z^{(k+1)} - w^{(k+1)}) \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <mtext>argmin</mtext> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> <mo>+</mo> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> <mtd> <mo>=</mo> <msup> <mrow> <mo>(</mo> <mi>P</mi> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <msup> <mi>C</mi> <mi>T</mi> </msup> <mi>C</mi> <mo>)</mo> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <mrow> <mo>(</mo> <msup> <mi>C</mi> <mi>T</mi> </msup> <mo stretchy="false">(</mo> <mi>w</mi> <mo>&#x2212;<!-- − --></mo> <mi>y</mi> <mo stretchy="false">)</mo> <mo>&#x2212;<!-- − --></mo> <mi>q</mi> <mo>)</mo> </mrow> </mtd> </mtr> <mtr> <mtd> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <msub> <mtext>argmin</mtext> <mrow class="MJX-TeXAtom-ORD"> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mrow> </msub> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <mi>w</mi> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> <mtd> <mo>=</mo> <mtext>min</mtext> <mo stretchy="false">(</mo> <mi>u</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <mtext>max</mtext> <mo stretchy="false">(</mo> <mi>l</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> <mo stretchy="false">)</mo> </mtd> </mtr> <mtr> <mtd> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd /> <mtd> <mo>=</mo> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <mo stretchy="false">(</mo> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> </mtd> </mtr> </mtable> </math></p><p>However, this formulation is <em>numerically</em> problematic because</p>
+<ul>
+<li>it requires an inverse of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P + \rho C^T C"> <mi>P</mi> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <msup> <mi>C</mi> <mi>T</mi> </msup> <mi>C</mi> </math></span> - which, despite significant sparsity in <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P"> <mi>P</mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C"> <mi>C</mi> </math></span> can end up having large
+fill-in (many nonzero elements) and thus be expensive to factorize and solve</li>
+<li>it requires computing <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C z^{(k+1)}"> <mi>C</mi> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C^T (w - y)"> <msup> <mi>C</mi> <mi>T</mi> </msup> <mo stretchy="false">(</mo> <mi>w</mi> <mo>&#x2212;<!-- − --></mo> <mi>y</mi> <mo stretchy="false">)</mo> </math></span> - at every iteration of which there can be many</li>
+</ul>
+<p>Instead, OSQP suggests using the split version of the problem, by introducing extra variables, which can eliminate both of these problematic operations.</p>
+<p><strong>Split version of the problem</strong></p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} \text{minimize} &amp; ~~ \frac{1}{2} z^T P z + q^T z \\ \text{subject to} &amp; ~~ C z - v = 0 \\ &amp; ~~ v = w \\ &amp; ~~ l \leq w \leq u \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <mtext>minimize</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> </mtd> </mtr> <mtr> <mtd> <mtext>subject to</mtext> </mtd> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <mi>v</mi> <mo>=</mo> <mn>0</mn> </mtd> </mtr> <mtr> <mtd /> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>v</mi> <mo>=</mo> <mi>w</mi> </mtd> </mtr> <mtr> <mtd /> <mtd> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mtd> </mtr> </mtable> </math></p><p>where I introduce the extra variable <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v"> <mi>v</mi> </math></span> . ADMM requires us to split the problem into two stages, which I do so:</p>
+<ul>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="f(z, v) = \frac{1}{2} z^T P z + q^T z ~~ \text{subject to} ~~ C z = v"> <mi>f</mi> <mo stretchy="false">(</mo> <mi>z</mi> <mo>,</mo> <mi>v</mi> <mo stretchy="false">)</mo> <mo>=</mo> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>subject to</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mi>C</mi> <mi>z</mi> <mo>=</mo> <mi>v</mi> </math></span> ,</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="g(w) = \begin{cases} 0 ~~~ \text{if} ~ l \leq w \leq u \\ \infty ~~ \text{otherwise} \end{cases}"> <mi>g</mi> <mo stretchy="false">(</mo> <mi>w</mi> <mo stretchy="false">)</mo> <mo>=</mo> <mrow> <mo>{</mo> <mtable columnalign="left left" rowspacing=".2em" columnspacing="1em" displaystyle="false"> <mtr> <mtd> <mn>0</mn> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>if</mtext> <mtext>&#xA0;</mtext> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mtd> </mtr> <mtr> <mtd> <mi mathvariant="normal">&#x221E;<!-- ∞ --></mi> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>otherwise</mtext> </mtd> </mtr> </mtable> <mo fence="true" stretchy="true" symmetric="true"></mo> </mrow> </math></span> ,</li>
+</ul>
+<p>where the ADMM consensus constraint is now <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v = w"> <mi>v</mi> <mo>=</mo> <mi>w</mi> </math></span> (instead of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C z = w"> <mi>C</mi> <mi>z</mi> <mo>=</mo> <mi>w</mi> </math></span> ).</p>
+<p>The updates become</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} z^{(k+1)}, v^{(k+1)} &amp;= \text{argmin}_{C z = v} ~~ \frac{1}{2} z^T P z + q^T z + \frac{\rho}{2} \| v - w^{(k+1)} + \rho^{-1} y^{(k)} \|_2^2 &amp; \\ w^{(k+1)} &amp;= \text{argmin}_{l \leq w \leq u} ~~ \frac{\rho}{2} \| v^{(k+1)} - w + \rho^{-1} y^{(k)} \|_2^2 &amp;= \text{min}(u, ~ \text{max}(l, ~ v^{(k+1)} + \rho^{-1} y^{(k)})) \\ y^{(k+1)} &amp; &amp;= y^{(k)} + \rho (v^{(k+1)} - w^{(k+1)}) \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>,</mo> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <msub> <mtext>argmin</mtext> <mrow class="MJX-TeXAtom-ORD"> <mi>C</mi> <mi>z</mi> <mo>=</mo> <mi>v</mi> </mrow> </msub> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> <mo>+</mo> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>v</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> <mtd /> </mtr> <mtr> <mtd> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <msub> <mtext>argmin</mtext> <mrow class="MJX-TeXAtom-ORD"> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mrow> </msub> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <mi>w</mi> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> <mtd> <mo>=</mo> <mtext>min</mtext> <mo stretchy="false">(</mo> <mi>u</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <mtext>max</mtext> <mo stretchy="false">(</mo> <mi>l</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> <mo stretchy="false">)</mo> </mtd> </mtr> <mtr> <mtd> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd /> <mtd> <mo>=</mo> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <mo stretchy="false">(</mo> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> </mtd> </mtr> </mtable> </math></p><p>where the first minimization problem is not trivial as it involves two vector
+variables <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="z"> <mi>z</mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v"> <mi>v</mi> </math></span> and a constraint <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C z = v"> <mi>C</mi> <mi>z</mi> <mo>=</mo> <mi>v</mi> </math></span> . However, it can be solved by
+introducing a Lagrange multiplier <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\lambda"> <mi>&#x03BB;<!-- λ --></mi> </math></span> <p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \min_{z, v} L(z, v, \lambda) = \min_{z, v} \frac{1}{2} z^T P z + q^T z + \frac{\rho}{2} \| v - w^{(k+1)} + \rho^{-1} y^{(k)} \|_2^2 + \lambda^T \left( C z - v \right) "> <munder> <mo movablelimits="true" form="prefix">min</mo> <mrow class="MJX-TeXAtom-ORD"> <mi>z</mi> <mo>,</mo> <mi>v</mi> </mrow> </munder> <mi>L</mi> <mo stretchy="false">(</mo> <mi>z</mi> <mo>,</mo> <mi>v</mi> <mo>,</mo> <mi>&#x03BB;<!-- λ --></mi> <mo stretchy="false">)</mo> <mo>=</mo> <munder> <mo movablelimits="true" form="prefix">min</mo> <mrow class="MJX-TeXAtom-ORD"> <mi>z</mi> <mo>,</mo> <mi>v</mi> </mrow> </munder> <mfrac> <mn>1</mn> <mn>2</mn> </mfrac> <msup> <mi>z</mi> <mi>T</mi> </msup> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>q</mi> <mi>T</mi> </msup> <mi>z</mi> <mo>+</mo> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mi>v</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> <mo>+</mo> <msup> <mi>&#x03BB;<!-- λ --></mi> <mi>T</mi> </msup> <mrow> <mo>(</mo> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <mi>v</mi> <mo>)</mo> </mrow> </math></p></p>
+<p>this produces a set of linear equations to solve it (by differentiating the
+Lagrangian with respect to <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="z"> <mi>z</mi> </math></span> and then <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v"> <mi>v</mi> </math></span> , and then adding another equation
+for constraint satisfaction).</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{cases} P z + q + C^T \lambda = 0 \\ -\lambda + \rho (v - w^{(k)} - \rho^{-1} y^{(k)}) = 0 \\ C z - v = 0 \end{cases} "> <mrow> <mo>{</mo> <mtable columnalign="left left" rowspacing=".2em" columnspacing="1em" displaystyle="false"> <mtr> <mtd> <mi>P</mi> <mi>z</mi> <mo>+</mo> <mi>q</mi> <mo>+</mo> <msup> <mi>C</mi> <mi>T</mi> </msup> <mi>&#x03BB;<!-- λ --></mi> <mo>=</mo> <mn>0</mn> </mtd> </mtr> <mtr> <mtd> <mo>&#x2212;<!-- − --></mo> <mi>&#x03BB;<!-- λ --></mi> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <mo stretchy="false">(</mo> <mi>v</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> <mo>=</mo> <mn>0</mn> </mtd> </mtr> <mtr> <mtd> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <mi>v</mi> <mo>=</mo> <mn>0</mn> </mtd> </mtr> </mtable> <mo fence="true" stretchy="true" symmetric="true"></mo> </mrow> </math></p><p>the trick to solving these equations efficiently is to eliminate <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v"> <mi>v</mi> </math></span> algebraically by solving the second equation for <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="v = w^{(k)} - \rho^{-1} y^{(k)} + \rho^{-1} \lambda "> <mi>v</mi> <mo>=</mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <mi>&#x03BB;<!-- λ --></mi> </math></span> and substituting it into the third equation to get
+two equations to solve</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{cases} P z + C^T \lambda = -q \\ C z - \rho^{-1} \lambda = w^{(k)} - \rho^{-1} y^{(k)} \end{cases} "> <mrow> <mo>{</mo> <mtable columnalign="left left" rowspacing=".2em" columnspacing="1em" displaystyle="false"> <mtr> <mtd> <mi>P</mi> <mi>z</mi> <mo>+</mo> <msup> <mi>C</mi> <mi>T</mi> </msup> <mi>&#x03BB;<!-- λ --></mi> <mo>=</mo> <mo>&#x2212;<!-- − --></mo> <mi>q</mi> </mtd> </mtr> <mtr> <mtd> <mi>C</mi> <mi>z</mi> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <mi>&#x03BB;<!-- λ --></mi> <mo>=</mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> </mtr> </mtable> <mo fence="true" stretchy="true" symmetric="true"></mo> </mrow> </math></p><p>which is the linear system in the matrix form</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{bmatrix} P &amp; C^T \\ C &amp; -\rho^{-1} I \end{bmatrix} \begin{bmatrix} z^{(k+1)} \\ \lambda^{(k+1)} \end{bmatrix} = \begin{bmatrix} -q \\ w^{(k)} - \rho^{-1} y^{(k)} \end{bmatrix} ~~ \text{then} ~~ v^{(k+1)} = w^{(k)} - \rho^{-1} y^{(k)} + \rho^{-1} \lambda^{(k+1)} "> <mrow> <mo>[</mo> <mtable rowspacing="4pt" columnspacing="1em"> <mtr> <mtd> <mi>P</mi> </mtd> <mtd> <msup> <mi>C</mi> <mi>T</mi> </msup> </mtd> </mtr> <mtr> <mtd> <mi>C</mi> </mtd> <mtd> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <mi>I</mi> </mtd> </mtr> </mtable> <mo>]</mo> </mrow> <mrow> <mo>[</mo> <mtable rowspacing="4pt" columnspacing="1em"> <mtr> <mtd> <msup> <mi>z</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> </mtr> <mtr> <mtd> <msup> <mi>&#x03BB;<!-- λ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> </mtr> </mtable> <mo>]</mo> </mrow> <mo>=</mo> <mrow> <mo>[</mo> <mtable rowspacing="4pt" columnspacing="1em"> <mtr> <mtd> <mo>&#x2212;<!-- − --></mo> <mi>q</mi> </mtd> </mtr> <mtr> <mtd> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> </mtr> </mtable> <mo>]</mo> </mrow> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>then</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>=</mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>&#x03BB;<!-- λ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </math></p><p>finally, the remaining updates are easy</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \begin{aligned} w^{(k+1)} &amp;= \text{argmin}_{l \leq w \leq u} ~~ \frac{\rho}{2} \| v^{(k+1)} - w + \rho^{-1} y^{(k)} \|_2^2 &amp;= \text{min}(u, ~ \text{max}(l, ~ v^{(k+1)} + \rho^{-1} y^{(k)})) \\ y^{(k+1)} &amp; &amp;= y^{(k)} + \rho (v^{(k+1)} - w^{(k+1)}) \end{aligned} "> <mtable columnalign="right left right left right left right left right left right left" rowspacing="3pt" columnspacing="0em 2em 0em 2em 0em 2em 0em 2em 0em 2em 0em" displaystyle="true"> <mtr> <mtd> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd> <mi></mi> <mo>=</mo> <msub> <mtext>argmin</mtext> <mrow class="MJX-TeXAtom-ORD"> <mi>l</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>w</mi> <mo>&#x2264;<!-- ≤ --></mo> <mi>u</mi> </mrow> </msub> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mfrac> <mi>&#x03C1;<!-- ρ --></mi> <mn>2</mn> </mfrac> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <mi>w</mi> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <msubsup> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mn>2</mn> <mn>2</mn> </msubsup> </mtd> <mtd> <mo>=</mo> <mtext>min</mtext> <mo stretchy="false">(</mo> <mi>u</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <mtext>max</mtext> <mo stretchy="false">(</mo> <mi>l</mi> <mo>,</mo> <mtext>&#xA0;</mtext> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <msup> <mi>&#x03C1;<!-- ρ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> </mrow> </msup> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> <mo stretchy="false">)</mo> </mtd> </mtr> <mtr> <mtd> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> </mtd> <mtd /> <mtd> <mo>=</mo> <msup> <mi>y</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo stretchy="false">)</mo> </mrow> </msup> <mo>+</mo> <mi>&#x03C1;<!-- ρ --></mi> <mo stretchy="false">(</mo> <msup> <mi>v</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo>&#x2212;<!-- − --></mo> <msup> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">(</mo> <mi>k</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> </mrow> </msup> <mo stretchy="false">)</mo> </mtd> </mtr> </mtable> </math></p><p><em>Note I have not quite reached the linear system form from OSQP, I am missing <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\sigma"> <mi>&#x03C3;<!-- σ --></mi> </math></span> regualization of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="z"> <mi>z</mi> </math></span> . In the paper, the authors introduce yet another
+ADMM variable, but its effect is equivalent to adding a <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\sigma"> <mi>&#x03C3;<!-- σ --></mi> </math></span> damping to the <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="z"> <mi>z</mi> </math></span> updates in the ADMM. They likely do so, to guarantee that <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P + \sigma I"> <mi>P</mi> <mo>+</mo> <mi>&#x03C3;<!-- σ --></mi> <mi>I</mi> </math></span> is
+positive definite (and thus invertible). This detail is important but would
+have added unnecessary complication to the explanation here.</em></p>
+<h3>Approximate Minimum Degree (AMD) Reordering</h3>
+<h3>The full QP ADMM Algorithm</h3>
+<ul>
+<li>construct the 4x4 linear system matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> - find a reordering of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> that produces a sparser factorization matrix</li>
+<li>factorize the matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> as <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="L D L^T"> <mi>L</mi> <mi>D</mi> <msup> <mi>L</mi> <mi>T</mi> </msup> </math></span> - repeat the ADMM loop for a fixed number of iterations<ul>
+<li>construct the right-hand side of the linear system</li>
+<li>solve the (reordered) linear system</li>
+<li>update the ADMM variables</li>
+<li>project the split ADMM variable</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2>Implementation of Necessary Tools</h2>
+<h3>Memory Allocation Routine</h3>
+<p>The first important set of programming tools is the memory allocation routines.
+While dynamic memory allocation is not possible in the CUDA kernel (at least not
+easily, especially when you need to use global memory for some intermediary
+computations), I can emulate it by creating routines that allow us to, on the
+fly, slice a block of memory into a desired array, and later reclaim the area of
+that slice when it is no longer needed.</p>
+<p>The solver benefits from using shared CUDA memory, a very <em>fast</em> memory as opposed to
+<em>slow</em> global memory. An RTX 3090 has a lot of global memory, 24 GB, but a
+limited amount of shared (fast) memory per block, about 48 KB. Not all of the
+fast memory is necessarily available and I tend to work with Float32 or Int32
+datatypes, both of which are 4 bytes long. Finally, I avoid reinterpreting the
+type of the memory on the fly because CUDA.jl compiler makes it a little
+difficult, so I end up with roughly 4 thousand element arrays per block for
+floating point and integer numbers each. In the code, I refer to those
+floating-point or integer arrays as fwork and iwork respectively.</p>
+<p>Finally, because I only have limited fast memory, I want to be able to tune
+the program, selecting which "dynamically" allocated arrays should be <em>fast</em> and
+which <em>slow</em>. I use the following wrappers:</p>
+<div class="hll"><pre><span></span><span class="s">&quot;&quot;&quot;Equivalent to the in-built `length` function, but returns an `Int32` instead of an `Int64`.&quot;&quot;&quot;</span>
+<span class="nd">@inline</span><span class="w"> </span><span class="k">function</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">work</span><span class="o">::</span><span class="kt">AbstractVector</span><span class="p">{</span><span class="kt">T</span><span class="p">})</span><span class="o">::</span><span class="kt">Int32</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="p">{</span><span class="kt">T</span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kt">Int32</span><span class="p">(</span><span class="n">length</span><span class="p">(</span><span class="n">work</span><span class="p">))</span>
+<span class="k">end</span>
+
+<span class="k">mutable</span><span class="w"> </span><span class="k">struct</span> <span class="kt">WorkSF</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span>
+<span class="w">  </span><span class="n">slow_whole_buffer</span><span class="o">::</span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">}</span>
+<span class="w">  </span><span class="n">slow_buffer</span><span class="o">::</span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">}</span>
+<span class="w">  </span><span class="n">fast_whole_buffer</span><span class="o">::</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span>
+<span class="w">  </span><span class="n">fast_buffer</span><span class="o">::</span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N2</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">}</span>
+<span class="k">end</span>
+
+<span class="s">&quot;&quot;&quot;Make a memory block into a memory block tracking tuple.&quot;&quot;&quot;</span>
+<span class="nd">@inline</span><span class="w"> </span><span class="k">function</span><span class="w"> </span><span class="n">make_mem_sf</span><span class="p">(</span>
+<span class="w">  </span><span class="c">#slow_buffer::CuDeviceVector{T,N1},</span>
+<span class="w">  </span><span class="n">slow_buffer</span><span class="o">::</span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">},</span>
+<span class="w">  </span><span class="n">fast_buffer</span><span class="o">::</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N2</span><span class="p">},</span>
+<span class="p">)</span><span class="o">::</span><span class="kt">WorkSF</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kt">WorkSF</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}(</span>
+<span class="w">    </span><span class="n">slow_buffer</span><span class="p">,</span>
+<span class="w">    </span><span class="n">view</span><span class="p">(</span><span class="n">slow_buffer</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="n">length</span><span class="p">(</span><span class="n">slow_buffer</span><span class="p">)),</span>
+<span class="w">    </span><span class="n">fast_buffer</span><span class="p">,</span>
+<span class="w">    </span><span class="n">view</span><span class="p">(</span><span class="n">fast_buffer</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="n">length</span><span class="p">(</span><span class="n">fast_buffer</span><span class="p">)),</span>
+<span class="w">  </span><span class="p">)</span>
+<span class="k">end</span>
+
+<span class="s">&quot;&quot;&quot;Allocate memory from a memory block tracking tuple.&quot;&quot;&quot;</span>
+<span class="nd">@inline</span><span class="w"> </span><span class="k">function</span><span class="w"> </span><span class="n">alloc_mem_sf!</span><span class="p">(</span>
+<span class="w">  </span><span class="n">worksf</span><span class="o">::</span><span class="kt">WorkSF</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">},</span>
+<span class="w">  </span><span class="n">size</span><span class="o">::</span><span class="kt">Integer</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fast</span><span class="o">::</span><span class="kt">Integer</span><span class="p">,</span>
+<span class="p">)</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span>
+<span class="w">  </span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">},</span>
+<span class="w">  </span><span class="kt">SubArray</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="kt">CuDeviceVector</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N2</span><span class="p">},</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">UnitRange</span><span class="p">{</span><span class="kt">Int64</span><span class="p">}},</span><span class="kt">true</span><span class="p">},</span>
+<span class="p">}</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span>
+<span class="w">  </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">fast_buffer</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">slow_buffer</span>
+<span class="w">  </span><span class="nd">@cuassert</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+<span class="w">  </span><span class="n">alloc_mem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">view</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="n">size</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="n">worksf</span><span class="o">.</span><span class="n">fast_buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">view</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">:</span><span class="n">len32</span><span class="p">(</span><span class="n">buffer</span><span class="p">))</span>
+<span class="w">  </span><span class="k">else</span>
+<span class="w">    </span><span class="n">worksf</span><span class="o">.</span><span class="n">slow_buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">view</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">:</span><span class="n">len32</span><span class="p">(</span><span class="n">buffer</span><span class="p">))</span>
+<span class="w">  </span><span class="k">end</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">alloc_mem</span>
+<span class="k">end</span>
+
+<span class="s">&quot;&quot;&quot;Free memory from a memory block tracking tuple.&quot;&quot;&quot;</span>
+<span class="nd">@inline</span><span class="w"> </span><span class="k">function</span><span class="w"> </span><span class="n">free_mem_sf!</span><span class="p">(</span>
+<span class="w">  </span><span class="n">worksf</span><span class="o">::</span><span class="kt">WorkSF</span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">},</span>
+<span class="w">  </span><span class="n">size</span><span class="o">::</span><span class="kt">Integer</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fast</span><span class="o">::</span><span class="kt">Integer</span><span class="p">,</span>
+<span class="p">)</span><span class="o">::</span><span class="kt">Nothing</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="kt">N1</span><span class="p">,</span><span class="kt">N2</span><span class="p">}</span>
+<span class="w">  </span><span class="n">whole_buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">fast_whole_buffer</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">slow_whole_buffer</span>
+<span class="w">  </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">fast_buffer</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">worksf</span><span class="o">.</span><span class="n">slow_buffer</span>
+<span class="w">  </span><span class="nd">@cuassert</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">whole_buffer</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+<span class="w">  </span><span class="n">si</span><span class="p">,</span><span class="w"> </span><span class="n">ei</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">whole_buffer</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">len32</span><span class="p">(</span><span class="n">whole_buffer</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="n">worksf</span><span class="o">.</span><span class="n">fast_buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">view</span><span class="p">(</span><span class="n">whole_buffer</span><span class="p">,</span><span class="w"> </span><span class="n">si</span><span class="o">:</span><span class="n">ei</span><span class="p">)</span>
+<span class="w">  </span><span class="k">else</span>
+<span class="w">    </span><span class="n">worksf</span><span class="o">.</span><span class="n">slow_buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">view</span><span class="p">(</span><span class="n">whole_buffer</span><span class="p">,</span><span class="w"> </span><span class="n">si</span><span class="o">:</span><span class="n">ei</span><span class="p">)</span>
+<span class="w">  </span><span class="k">end</span>
+<span class="w">  </span><span class="k">return</span>
+<span class="k">end</span>
+</pre></div>
+<p>For people familiar with the Julia programming language and CUDA.jl, I note
+that the compiler needs to know the types ahead of time, so I dynamically
+define the QP solver function (using Julia's metaprogramming) given the <code>fast</code>
+tuning flags at compile time. Furthermore, I need to use a different type
+signature for the fast and slow CUDA memory: CuDeviceVector{T,N1} and
+CuDeviceVector{T,N1}. N1 and N2 refer not to the dimension (dimension of 1 is
+implied by the <code>Vector</code> in the type name), but the placement of the memory on
+the GPU, globally or in the shared memory.</p>
+<p>These are in <code>mem_utils.jl</code>.</p>
+<h3>Vector Utilities</h3>
+<p>CUDA.jl has fairly poor support for broadcasting operations in Julia, so the
+solver needs to use a lot of loops. To make the algorithm implementation a
+little cleaner, I abstracted a lot of loop operations on vectors into separate
+functions. CUDA.jl most likely inlines these functions, so the difference is
+only code readability.</p>
+<p>These are in <code>vec_utils.jl</code>.</p>
+<h3>Sparse Matrix Utilities</h3>
+<p>The sparse matrix utilities, primarily for building the linear system matrix,
+required a little more implementation effort. Because memory allocation is an
+issue, in-place or no-work-memory-requiring routines were preferred. Some of
+these, like vertical and horizontal concatenation of sparse matrices I
+implemented myself, and some, like sparse matrix transpose, I rewrote from
+Julia's core (CPU-based) library.</p>
+<p>Finally, the most implementationally challenging routine was sparse matrix
+reordering (to aid in sparser factorization). This requires the argument sorting
+routine, but no such routine is available on the GPU in CUDA.jl. I implemented
+a modified version of mergesort, with a temporary work array of the same size as
+the sorted array size (in addition to the index array).</p>
+<p>These are in <code>sparse_utils.jl</code> and <code>amd_pkg/permute.jl</code>.</p>
+<h3>Linear System Solver</h3>
+<p>For linear system solution, the solver is working with a symmetric, non-positive
+definite matrix. Since the problem formulation ensures that no eigenvalues are
+zero (by construction), I can use the LDLT factorization, a close relative of
+the Cholesky factorization which adds a diagonal D matrix to allow for negative
+eigenvalues. The factorization takes the form</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" A = L D L^T "> <mi>A</mi> <mo>=</mo> <mi>L</mi> <mi>D</mi> <msup> <mi>L</mi> <mi>T</mi> </msup> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="L"> <mi>L</mi> </math></span> is a lower triangular matrix and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="D"> <mi>D</mi> </math></span> is a diagonal matrix.</p>
+<p>I manually transpiled the excellent C implementation of this factorization from
+<a href="https://github.com/osqp/qdldl/">https://github.com/osqp/qdldl/</a>.</p>
+<p>These are in <code>ldlt.jl</code>.</p>
+<h3>Approximate Minimum Degree (AMD) Reordering</h3>
+<p>The main numerical optimization available to us for speedingGkp the linear
+system solution (not the factorization) is matrix reordering. Since the
+algorithm requires that the solver perform the linear system solution operation
+every iteration, then optimization of this step results in good computational
+speedups.</p>
+<p>The objective of matrix reordering is to find a permutation matrix P, such that matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="P A P^T"> <mi>P</mi> <mi>A</mi> <msup> <mi>P</mi> <mi>T</mi> </msup> </math></span> , when factored into <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\tilde{L} \tilde{D} \tilde{L}^T"> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>L</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>D</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <msup> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>L</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mi>T</mi> </msup> </math></span> has
+significantly fewer non-zeros than the direct factorization <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="L D L^T = A"> <mi>L</mi> <mi>D</mi> <msup> <mi>L</mi> <mi>T</mi> </msup> <mo>=</mo> <mi>A</mi> </math></span> .</p>
+<p>The optimal reordering problem is in general NP-hard, but there are a number of
+heuristics that can compute approximations. The quality of this approximation
+varies and so does their computational cost. What matters is not just how much
+the heuristic reduces the number of non-zeros on average, but how consistent it
+is and does it ever produce a reordering that results in more non-zeros than
+the direct matrix factorization.</p>
+<p>I followed the excellent approximate minimum ordering tutorial by Stephen
+Ingram
+<a href="http://sfingram.net/cs517_final.pdf">http://sfingram.net/cs517_final.pdf</a> to
+develop an intuition for the problem. I considered existing proposed solutions
+that are widely used and of certifiable quality, like Approximate Minimum Degree
+(AMD) Algorithm by Amestoy, P. et al. However, I found that transcribing those
+existing implementations to non-allocating code is extremely challenging, even
+using automatic tools or ChatGPT-4.</p>
+<p>Finally, I implemented several AMD versions and chose one based on performance
+evaluation on the <a href="https://math.nist.gov/MatrixMarket/"><em>Matrix Market</em>
+Dataset</a>. The routine I chose was a
+limited depth (a fixed depth of 3) enode lookup based on the quotient graph
+technique.</p>
+<p>These are in <code>amd_pkg/ordering.jl</code>.</p>
+<hr>
+<h2>Kernel Optimization Improvements</h2>
+<p>Summary of optimizations</p>
+<table>
+<thead><tr>
+<th>Optimization</th>
+<th>Type</th>
+<th>Description</th>
+<th>Impact</th>
+<th>Covered?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>shared CUDA memory</td>
+<td>CUDA</td>
+<td>shared memory, which is block local, can be much faster than reading and writing to the global memory</td>
+<td>++</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>CUDA threads for loops</td>
+<td>CUDA</td>
+<td>CUDA threads can be used to non-sequential parallelize loops</td>
+<td>+</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>CUDA block/thread tuning</td>
+<td>CUDA</td>
+<td>perfect combination of CUDA threads/blocks to use can often speed up CUDA programs significantly by increasing arithmetic efficiency</td>
+<td>++</td>
+<td>Partially</td>
+</tr>
+<tr>
+<td>disable bound checks</td>
+<td>CUDA</td>
+<td>bound checks can be expensive and disabling them brings some modest speedups</td>
+<td>+</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>matrix factorization reordering</td>
+<td>numerical</td>
+<td>reordering the matrix before factorization can reduce the number of nonzeros in the factorization matrix</td>
+<td>++</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>matrix balancing</td>
+<td>convergence</td>
+<td>balancing the linear system matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> can lead to a lower numerical condition number and thus faster convergence</td>
+<td>+</td>
+<td>No</td>
+</tr>
+<tr>
+<td>hyperparameter tuning</td>
+<td>convergence</td>
+<td>the two hyperparameters: <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\rho"> <mi>&#x03C1;<!-- ρ --></mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\sigma"> <mi>&#x03C3;<!-- σ --></mi> </math></span> can be tuned to speed up convergence</td>
+<td>+</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>The three main optimizations that allow the kernel to run faster are (1) using
+much-faster shared CUDA memory for intermediate calculations, (2) using threads
+to speed up unordered loops and (3) reordering the matrix before factorization
+to reduce the number of nonzeros in the factorization matrix. (3) is especially
+important because solving a linear system using a triangular factorization is a
+very sequential operation and thus the number of nonzeros in the factorization
+matrix directly determines how many sequential operations the solver has to execute.
+The factorization, additionally, happens for every iteration of the ADMM loop,
+of which there can be thousands.</p>
+<p>In this work, I move convergence speedups to future work, so I do not tune the
+hyperparameters <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\rho"> <mi>&#x03C1;<!-- ρ --></mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\sigma"> <mi>&#x03C3;<!-- σ --></mi> </math></span> and I do not balance the matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> - these
+are straightforward to implement, but require a lot of additional
+experimentation.</p>
+<p>Lastly, I do not tune the CUDA block/thread combination, because of the
+implementation decision I made: the algorithm requires one block per QP problem
+(as it relies on exclusive access to shared memory per block). Thus, I only
+tune the number of threads per block, but this is much more straightforward to
+do than the alternative: (i) parametrizing the algorithm to use an arbitrary
+number of blocks as well as threads and then tuning both of these parameters at
+the same time.</p>
+<p align="center">
+<img src="/images/cuda_qp_solver/opt_improvements.svg" style="width:100%;max-width:700px" />
+</p><p>I can also quantify the level of improvement given by employing more threads.
+The gains saturate fairly quickly.</p>
+<p align="center">
+<img src="/images/cuda_qp_solver/threads_scan.svg" style="width:100%;max-width:700px" />
+</p><hr>
+<h2>CUDA Block Saturation</h2>
+<p align="center">
+<img src="/images/cuda_qp_solver/blocks_scan.svg" style="width:100%;max-width:700px" />
+</p><p>I ran the tests on an NVIDIA RTX 3090 GPU which has 82 streaming
+multiprocessors. Interestingly, as I increase the number of blocks (which
+corresponds to the number of QP problems), we see the time required jumps at
+increments of 82. Moreover, the increase is only strong every 3 multiples, at 246. 
+Using 1 or 2 wraps (32 and 64 threads respectively) does not appear to
+alter this trend.</p>
+<h2>Algorithm Setup vs Iteration Time</h2>
+<p>Finally, I quantify problem setup time versus iteration time. The algorithm I 
+implemented is fundamentally an iteration-based algorithm, generally, the more
+the iteration number allowed, the higher the quality of the solution. However,
+linear system matrix building, approximate matrix reordering, and matrix
+factorization all take some time. I plot the runtime versus iterations and use a
+linear fit to distinguish setup from iteration time.</p>
+<p align="center">
+<img src="/images/cuda_qp_solver/iteration_scan.svg" style="width:100%;max-width:700px" />
+</p><p>I observe that a solution with a quality of at least 1% solution error for the
+toy problem requires at least 200 iterations, this gives 17.9 ms for iterations
+and 9.44 ms for setup. Thus, somewhat significant gains could be achieved by
+speed either one - both are important.</p>
+<h2>Comparison against a CPU solution and original OSQP implementation</h2>
+<p>Somewhat encouragingly, I find that a CPU implementation of the algorithm,
+minimally modified from the CUDA version runs within a single standard deviation
+of the original OSQP implementation at around 0.50 ms versus 0.45 ms for OSQP. My
+implementation is in Julia while theirs is in C. For non-CUDA computational
+gains, I mostly use SIMD (single instruction multiple data) Julia-provided
+macro to significantly speed up loop operations on a consumer CPU: Ryzen 7
+5800X.</p>
+<p>In comparison to CUDA, looking at the block saturation CUDA performance versus a
+sequential CPU solution is mostly likely found at 246 blocks/QPs as the first
+two block saturation jumps are a relatively minor hit to performance. Assuming a
+CPU solution of about 0.5 ms per QP problem, the GPU speedup is about</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \frac{246 * 0.5 \text{ms}}{27.25 \text{ms}} \approx 4.5 "> <mfrac> <mrow> <mn>246</mn> <mo>&#x2217;<!-- ∗ --></mo> <mn>0.5</mn> <mtext>ms</mtext> </mrow> <mrow> <mn>27.25</mn> <mtext>ms</mtext> </mrow> </mfrac> <mo>&#x2248;<!-- ≈ --></mo> <mn>4.5</mn> </math></p><p>This is not encouraging as a consumer GPU, costing likely at least 1/3rd of the
+price of an RTX 3090 easily achieves 5x multi-threaded performance, beating the
+CUDA implementation. Nevertheless, I note that the value of this project is
+most likely educational. The heterogenous QP solver is a very challenging
+problem to effectively parallelize.</p>
+<hr>
+<h1>Extensions</h1>
+<p>There are a number of possible extensions to this work, these include at least</p>
+<ul>
+<li>hyperparameter tuning<ul>
+<li>the tuning (or automatic/heuristic choice) of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\rho"> <mi>&#x03C1;<!-- ρ --></mi> </math></span> and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\sigma"> <mi>&#x03C3;<!-- σ --></mi> </math></span> hyperparameters can have an especially high impact on the convergence speed and
+thus cutting down the number of iterations required for the same solution quality</li>
+</ul>
+</li>
+<li>matrix balancing<ul>
+<li>matrix balancing can have a similar effect to hyperparameter tuning and
+heuristic techniques employed by OSQP are not particularly hard to implement</li>
+</ul>
+</li>
+<li>reusing blocks for the same solution<ul>
+<li>potentially, some speedup could be achieved if the solver could solve two or more
+QPs on the same block, splitting the threads between them</li>
+</ul>
+</li>
+<li>conjugate gradient linear system solver for the linear system<ul>
+<li>as I discussed, the main limit to the parallel acceleration of the QP
+algorithm is the sequential nature of the linear system reordering,
+factorization and solve operations</li>
+<li>matrix-free techniques, like the conjugate gradient method, which can be much
+more readily parallelized for sparse matrices on the GPU could allow for
+significant computation speedups both by allowing the GPU to use more active
+threads at a time and by trading off some numerical accuracy for a faster solution</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h1>References</h1>
+<ul>
+<li>Alternating Direction Method of Multipliers, Lecture Slides, <a href="https://web.stanford.edu/~boyd/papers/pdf/admm_slides.pdf">https://web.stanford.edu/~boyd/papers/pdf/admm_slides.pdf</a></li>
+<li>Stellato, Bartolomeo, et al. "OSQP: An operator splitting solver for quadratic programs." Mathematical Programming Computation 12.4 (2020): 637-672.</li>
+<li>CUDA programming with Julia, <a href="https://irhum.github.io/blog/cudajulia/">https://irhum.github.io/blog/cudajulia/</a></li>
+<li>QDLD Factorization Routine, <a href="https://github.com/osqp/qdldl/">https://github.com/osqp/qdldl/</a>.</li>
+<li>Ingram, S., Minimum Degree Reordering Algorithms: A Tutorial, <a href="http://sfingram.net/cs517_final.pdf">http://sfingram.net/cs517_final.pdf</a></li>
+<li>Amestoy, Patrick R., Timothy A. Davis, and Iain S. Duff. "An approximate minimum degree ordering algorithm." SIAM Journal on Matrix Analysis and Applications 17.4 (1996): 886-905.</li>
+<li>Matrix Market Dataset, <a href="https://math.nist.gov/MatrixMarket/">https://math.nist.gov/MatrixMarket/</a></li>
+</ul>
+
           </td>
         </tr>
       </tbody>

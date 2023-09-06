@@ -3,6 +3,7 @@ name = Personal Website
 
 [packages]
 lektor-markdown-highlighter = 0.3.2
+sqlitedict = 2.1.0
 
 [servers.github]
 name = Github Pages

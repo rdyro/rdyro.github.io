@@ -1,0 +1,9 @@
+{
+    "grammarly.selectors": [
+        {
+            "language": "python",
+            "scheme": "file",
+            "pattern": "packages/latex2embed-math/lektor_latex2embed_math.py"
+        }
+    ]
+}

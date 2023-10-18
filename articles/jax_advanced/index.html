@@ -40,7 +40,7 @@
 </ul>
 </li>
 </ul>
-<p>This tutorial is at attempt to produce an educational reference for JAX
+<p>This tutorial is an attempt to produce an educational reference for JAX
 techniques we found particularly interesting in our work and research. As such,
 it is a collection of a few disjoint topics.</p>
 <hr>
@@ -54,7 +54,7 @@ nested dictionaries for configurations and so on. The philosophy of JAX is simpl
 <p>The JAX name for any valid nested Python structure is a <em>Pytree</em>, a tree because
 each container (e.g., tuple, list, dictionary) is a root with several children
 nodes (the elements in the container).</p>
-<p>The are many excellent JAX introductory resources for Pytrees, but the advanced
+<p>There are many excellent JAX introductory resources for Pytrees, but the advanced
 techniques using Pytrees we cover in this tutorial are the following:</p>
 <ol>
 <li>automatically determining which function arguments should be batched over in <code>vmap</code></li>
@@ -75,7 +75,7 @@ parameters. If you're trying to batch compute a function over your problem, you
 might need to batch over all data, but none of the configuration parameters
 (these are the same for each batch). How to automatically compute which
 arguments should be batched over and which not?</p>
-<p><em>Note: <code>vmap</code> expects that the user explicitly instructs it which arguments to</em>batch over (and which axis to use)*</p>
+<p><em>Note: <code>vmap</code> expects that the user explicitly instructs it which arguments to batch over (and which axis to use)</em></p>
 <div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
 <span class="kn">from</span> <span class="nn">jax</span> <span class="kn">import</span> <span class="n">vmap</span><span class="p">,</span> <span class="n">Array</span>
 <span class="kn">from</span> <span class="nn">jax.tree_util</span> <span class="kn">import</span> <span class="n">tree_map</span>
@@ -95,7 +95,7 @@ arguments should be batched over and which not?</p>
     <span class="c1"># if the argument has the first dimension of size batch_size, 0 is the batch axis</span>
     <span class="c1"># otherwise, we put None to indicate that the argument should not be batched over</span>
     <span class="n">in_axes</span> <span class="o">=</span> <span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">is_batchable</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">problem</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">jaxm</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">computation_fn</span><span class="p">,</span> <span class="n">in_axes</span><span class="p">)(</span><span class="n">problem</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">computation_fn</span><span class="p">,</span> <span class="n">in_axes</span><span class="p">)(</span><span class="n">problem</span><span class="p">)</span>
 </pre></div>
 <h3>2. How to compile a JAX function that takes arguments unsupported by JAX?</h3>
 <p>When calling <code>jax.jit</code> to indicate that we want a function compiled, there's an
@@ -190,7 +190,8 @@ automatic jit function</p>
         <span class="c1"># 8. we can now call the compiled function with the flat arguments</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn_cache</span><span class="p">[</span><span class="n">cache_key</span><span class="p">](</span><span class="o">*</span><span class="n">flat_args</span><span class="p">)</span>
 </pre></div>
-<p>The PyTree section have been heavily inspired by the Equinox (TODO add link)
+<p>The PyTree section has been heavily inspired by the Equinox
+<a href="https://github.com/patrick-kidger/equinox">https://github.com/patrick-kidger/equinox</a>
 package which pushes further on the PyTree philosophy in JAX.</p>
 <hr>
 <h2>Using random numbers in JAX</h2>
@@ -229,7 +230,7 @@ well for this purpose, we found that <code>cloudpickle</code> (TODO add link) ca
 better. Especially with <code>lambda</code>s, in-line defined functions, which are often
 useful when working with JAX functional transformations.</p>
 <p>We recognize that sending arbitrary Python code to remote workers is not
-necesserily a common application, but with JAX functional philosophy, functions
+necessarily a common application, but with JAX functional philosophy, functions
 are often as important as data, so a problem-to-compute can now consist of data
 <strong>and</strong> functions.</p>
 <p>In this section of the tutorial, we cover two topics code serialization topics:</p>
@@ -243,9 +244,10 @@ function compilation to disk, so that it survives program restart. Persistent
 compilation is particularly useful as code development speed can be
 significantly hindered in research contexts, if the function compilation takes
 upwards of 1 minute.</p>
-<p>The only solution to persistent compilation we found, was to use a python
-<code>Process</code> that could accept functions and subsequently compute data</p>
-<p>We can use the remote call Python package <code>rpyc</code></p>
+<p>The only solution to persistent compilation we found, was to use a persistent
+process (a separate program) that could accept Python functions and subsequently
+compute data</p>
+<p>One simple possibility is to use the remote call Python package <code>rpyc</code>.</p>
 <p>For the server code, we simply have</p>
 <div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">rpyc</span>
 <span class="kn">import</span> <span class="nn">jax</span>
@@ -281,7 +283,8 @@ upwards of 1 minute.</p>
 <span class="k">def</span> <span class="nf">linear_transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W</span> <span class="o">+</span> <span class="n">b</span>
 </pre></div>
-<p>The obvious disadvantage of this solution is that it can easily be bottlenecked by what is effectively a TCP based data transfer, which can be slow.</p>
+<p>The obvious disadvantage of this solution is that it can easily be bottlenecked
+by what is effectively a TCP based data transfer, which can be slow.</p>
 <h3>2. What to do if pickling fails on a JAX object?</h3>
 <p>In Python, if an object fails to pickle, it is possible to define a custom serialization method using the in-built library <code>copyreg</code> like so:</p>
 <div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">copyreg</span>
@@ -294,7 +297,7 @@ upwards of 1 minute.</p>
     <span class="k">def</span> <span class="nf">custom_constructor</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">P</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
 
-    <span class="n">pickleable_objs_to_save</span> <span class="o">=</span> <span class="p">(</span><span class="n">P</span><span class="o">.</span><span class="n">a</span><span class="p">,)</span>
+    <span class="n">pickleable_objs_to_save</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">a</span><span class="p">,)</span>
     <span class="k">return</span> <span class="n">custom_constructor</span><span class="p">,</span> <span class="n">pickleable_objs_to_save</span>
 
 <span class="c1"># register the custom pickling method</span>
@@ -304,7 +307,7 @@ upwards of 1 minute.</p>
 <h2>Extending JAX</h2>
 <h3>1. Without defining gradients (KDTree)</h3>
 <p>Let's consider the example of wrapping scipy object for KDTree nearest point
-search. This object primarily return integer indices, so we need not worry about
+search. This object primarily returns integer indices, so we need not worry about
 differentiability.</p>
 <div class="hll"><pre><span></span><span class="k">class</span> <span class="nc">JAXKDTree</span><span class="p">(</span><span class="n">KDTree</span><span class="p">):</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">n_return</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
@@ -345,7 +348,7 @@ differentiability.</p>
 <h3>2. With gradients (Torch)</h3>
 <p>Let's wrap the PyTorch <code>cross_entropy_loss</code> function, which includes both
 floating point and integer arguments.</p>
-<p>We first define the PyTorch interface in a way</p>
+<p>We first define the PyTorch interface as follows</p>
 <div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">jax.tree_util</span> <span class="kn">import</span> <span class="n">tree_map</span><span class="p">,</span> <span class="n">tree_flatten</span>
 
@@ -372,7 +375,7 @@ floating point and integer arguments.</p>
     <span class="n">dy</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">)</span>
 </pre></div>
-<p>Tnen, we construct the custom vector-Jacobian rule in JAX</p>
+<p>Then, we construct the custom vector-Jacobian rule in JAX</p>
 <div class="hll"><pre><span></span><span class="c1"># time to define the JAX function with a reverse-mode gradient</span>
 <span class="nd">@jax</span><span class="o">.</span><span class="n">custom_vjp</span>
 <span class="k">def</span> <span class="nf">cross_entropy_loss_jax</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
@@ -391,7 +394,6 @@ floating point and integer arguments.</p>
 
 <span class="n">cross_entropy_loss_jax</span><span class="o">.</span><span class="n">defvjp</span><span class="p">(</span><span class="n">fwd_fn</span><span class="p">,</span> <span class="n">bwd_fn</span><span class="p">)</span>
 </pre></div>
-<p>TODO add link to <code>jfi</code> which has routines to automatically wrap a PyTorch function like this.</p>
 <hr>
 <h2>Compile-friendly control flow</h2>
 <h3>If-statements</h3>
@@ -408,7 +410,7 @@ into JAX language compatible operations. TODO add link</p>
 <li><code>jax.cond</code> only computes one of the two code paths depending on the condition
 value <ul>
 <li>avoids unnecessary computation</li>
-<li>will not propagate NaNs from one path (as the wrong path should never be computed)</li>
+<li>will not propagate NaNs from one path (as the wrong path will not be computed)</li>
 <li>requires a single boolean predicate, meaning it has to be manually batched (<code>vmap</code>-ed) over a batch of data conditions</li>
 </ul>
 </li>
@@ -427,7 +429,7 @@ value <ul>
 <span class="n">val</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="n">a</span> <span class="o">*</span> <span class="n">z</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="n">b</span> <span class="o">*</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="c1"># argument version</span>
 </pre></div>
 <h3>Loops</h3>
-<p>JAX can trace Python loops, the main justification for using a JAX loop-like
+<p>JAX can trace Python loops, the main justifications for using a JAX loop-like
 operator instead of a Python loop are:</p>
 <ul>
 <li><ol>
@@ -444,7 +446,7 @@ resulting computation graph, taking (much) longer to compile</li>
 <ul>
 <li><code>jax.lax.scan</code> runs a fixed number of iterations sequentially and returns all of history</li>
 <li><code>jax.lax.fori_loop</code> runs a fixed number of iterations sequentially and returns last value</li>
-<li><code>jax.lax.while_loop</code> runs a variable number of iterations adn returns the last value</li>
+<li><code>jax.lax.while_loop</code> runs a variable number of iterations and returns the last value</li>
 </ul>
 <p>Noticeably, JAX is missing a version which runs a variable number of iterations,
 returning the history. This is likely, because the use case might not be common
@@ -491,7 +493,7 @@ have a variable shape.</p>
 <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">A</span> <span class="o">@</span> <span class="n">x</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
 </pre></div>
 <ol>
-<li><code>jax.lax.while_loop</code> return only the last value for a variable number of iterations</li>
+<li><code>jax.lax.while_loop</code> returns only the last value for a variable number of iterations</li>
 </ol>
 <div class="hll"><pre><span></span><span class="c1"># a simple ODE, which we terminate once we exceed position x[0] = 0.5</span>
 <span class="c1"># we want to count the number of iterations</span>
@@ -515,7 +517,7 @@ have a variable shape.</p>
 <p>What if we want to perform a computation a variable number of times, while
 retaining history? We can make our own loop version by combining <code>scan</code> with
 <code>cond</code> to execute a function for a maximum number of iterations (an upper bound
-on the number of iterations), but we avoid doing work once the end condition is
+on the number of iterations), but we avoid unnecessary computations once the end condition is
 met, by using <code>cond</code>.</p>
 <div class="hll"><pre><span></span><span class="c1"># a simple ODE, which we terminate once we exceed position x[0] = 0.5</span>
 <span class="c1"># we want to count the number of iterations</span>
@@ -564,7 +566,7 @@ for JAX. These, in short, are:</p>
 </tr>
 </tbody>
 </table>
-<p>In our work, we evaluated these libraries these main metrics:</p>
+<p>In our work, we qualitatively evaluated these libraries on these main metrics:</p>
 <ul>
 <li><em>compilation speed</em> - how quickly the resulting ML models can be compiled with <code>jax.jit</code></li>
 <li><em>documentation quality</em></li>
@@ -609,7 +611,7 @@ for JAX. These, in short, are:</p>
 </tr>
 </tbody>
 </table>
-<p>Flax is most definitely most widely adopted and recently includes a new module
+<p>Flax is most undoubtedly most widely adopted and recently includes a new module
 initialization interface that closely resembles PyTorch, making it easy for us
 to jump between PyTorch and JAX. However, we ran into long compilation problems
 with Flax when working on (admittedly very sprawling)
@@ -620,7 +622,7 @@ philosophy, however, presents conceptual problems when attempting to work with
 batch layers, like BatchNorm. The author provides support for this layer, but
 the support is currently conceptually confusing to us.</p>
 <p>For this reason, we are currently using Haiku!</p>
-<h2>THE <code>jfi</code> package (friendly JAX interface)</h2>
+<h2>The <code>jfi</code> package (friendly JAX interface)</h2>
 <p>In our research and coming from PyTorch, we found it much easier to work with
 JAX by writing a library of utility functions</p>
 <ul>
@@ -644,9 +646,12 @@ JAX by writing a library of utility functions</p>
 <p>Check out our work here:
 <a href="https://github.com/rdyro/jfi-JAXFriendlyInterface">jfi-JAXFriendlyInterface</a>.</p>
 <hr>
-<h2>Resource (other great JAX resources)</h2>
-<hr>
-<h2>References</h2>
+<h2>Resources/References</h2>
+<ul>
+<li>General JAX documentation: <a href="https://jax.readthedocs.io/en/latest/">https://jax.readthedocs.io/en/latest/</a></li>
+<li>PyTree package taking the JAX PyTrees philosophy to its beautiful extreme: <a href="https://github.com/patrick-kidger/equinox">https://github.com/patrick-kidger/equinox</a></li>
+<li>Advanced Tutorial on how to extend the JAX library in C++: <a href="https://github.com/dfm/extending-jax">https://github.com/dfm/extending-jax</a></li>
+</ul>
 
           </td>
         </tr>

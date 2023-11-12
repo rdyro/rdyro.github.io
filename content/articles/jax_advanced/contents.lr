@@ -31,7 +31,7 @@ JAX is a Python framework for
     - parallelize functions over lots of data
     - run the same high-level computational functions on a variety of hardware: CPU, GPU, TPUs
 
-This tutorial is at attempt to produce an educational reference for JAX
+This tutorial is an attempt to produce an educational reference for JAX
 techniques we found particularly interesting in our work and research. As such,
 it is a collection of a few disjoint topics.
 
@@ -51,7 +51,7 @@ The JAX name for any valid nested Python structure is a *Pytree*, a tree because
 each container (e.g., tuple, list, dictionary) is a root with several children
 nodes (the elements in the container).
 
-The are many excellent JAX introductory resources for Pytrees, but the advanced
+There are many excellent JAX introductory resources for Pytrees, but the advanced
 techniques using Pytrees we cover in this tutorial are the following:
 1. automatically determining which function arguments should be batched over in `vmap`
 2. how to compile a JAX function that takes arguments not supported by JAX
@@ -72,8 +72,7 @@ might need to batch over all data, but none of the configuration parameters
 (these are the same for each batch). How to automatically compute which
 arguments should be batched over and which not?
 
-*Note: `vmap` expects that the user explicitly instructs it which arguments to
-*batch over (and which axis to use)*
+*Note: `vmap` expects that the user explicitly instructs it which arguments to batch over (and which axis to use)*
 
 
 ```python
@@ -96,7 +95,7 @@ def vmap_automatically(computation_fn: Callable, problem: Dict[str, Any], batch_
     # if the argument has the first dimension of size batch_size, 0 is the batch axis
     # otherwise, we put None to indicate that the argument should not be batched over
     in_axes = tree_map(lambda x: 0 if is_batchable(x, batch_size) else None, problem)
-    return jaxm.vmap(computation_fn, in_axes)(problem)
+    return jax.vmap(computation_fn, in_axes)(problem)
 ```
 
 ### 2. How to compile a JAX function that takes arguments unsupported by JAX?
@@ -209,7 +208,8 @@ class AdvancedAutoJIT:
 
 ```
 
-The PyTree section have been heavily inspired by the Equinox (TODO add link)
+The PyTree section has been heavily inspired by the Equinox
+[https://github.com/patrick-kidger/equinox](https://github.com/patrick-kidger/equinox)
 package which pushes further on the PyTree philosophy in JAX.
 
 ----
@@ -255,7 +255,7 @@ better. Especially with `lambda`s, in-line defined functions, which are often
 useful when working with JAX functional transformations.
 
 We recognize that sending arbitrary Python code to remote workers is not
-necesserily a common application, but with JAX functional philosophy, functions
+necessarily a common application, but with JAX functional philosophy, functions
 are often as important as data, so a problem-to-compute can now consist of data
 **and** functions.
 
@@ -271,10 +271,11 @@ compilation is particularly useful as code development speed can be
 significantly hindered in research contexts, if the function compilation takes
 upwards of 1 minute.
 
-The only solution to persistent compilation we found, was to use a python
-`Process` that could accept functions and subsequently compute data
+The only solution to persistent compilation we found, was to use a persistent
+process (a separate program) that could accept Python functions and subsequently
+compute data
 
-We can use the remote call Python package `rpyc`
+One simple possibility is to use the remote call Python package `rpyc`. 
 
 For the server code, we simply have
 
@@ -317,7 +318,8 @@ def linear_transform(x, W, b):
     return x @ W + b
 ```
 
-The obvious disadvantage of this solution is that it can easily be bottlenecked by what is effectively a TCP based data transfer, which can be slow.
+The obvious disadvantage of this solution is that it can easily be bottlenecked
+by what is effectively a TCP based data transfer, which can be slow.
 
 ### 2. What to do if pickling fails on a JAX object?
 
@@ -334,7 +336,7 @@ def custom_pickling(p: P):
     def custom_constructor(a):
         return P(a * 2)
 
-    pickleable_objs_to_save = (P.a,)
+    pickleable_objs_to_save = (p.a,)
     return custom_constructor, pickleable_objs_to_save
 
 # register the custom pickling method
@@ -348,7 +350,7 @@ copyreg.pickle(P, custom_pickling)
 ### 1. Without defining gradients (KDTree)
 
 Let's consider the example of wrapping scipy object for KDTree nearest point
-search. This object primarily return integer indices, so we need not worry about
+search. This object primarily returns integer indices, so we need not worry about
 differentiability.
 
 ```python
@@ -396,7 +398,7 @@ Let's wrap the PyTorch `cross_entropy_loss` function, which includes both
 floating point and integer arguments.
 
 
-We first define the PyTorch interface in a way 
+We first define the PyTorch interface as follows
 ```python
 import torch
 from jax.tree_util import tree_map, tree_flatten
@@ -425,7 +427,7 @@ def cel_vjp(args, gs):
     return (dx, dy)
 ```
 
-Tnen, we construct the custom vector-Jacobian rule in JAX
+Then, we construct the custom vector-Jacobian rule in JAX
 ```python
 # time to define the JAX function with a reverse-mode gradient
 @jax.custom_vjp
@@ -446,8 +448,6 @@ def bwd_fn(args, gs):
 cross_entropy_loss_jax.defvjp(fwd_fn, bwd_fn)
 ```
 
-TODO add link to `jfi` which has routines to automatically wrap a PyTorch function like this.
-
 ----
 
 ## Compile-friendly control flow
@@ -465,7 +465,7 @@ In summary, the two conditional branching operators types are:
 - `jax.cond` only computes one of the two code paths depending on the condition
 value 
     - avoids unnecessary computation
-    - will not propagate NaNs from one path (as the wrong path should never be computed)
+    - will not propagate NaNs from one path (as the wrong path will not be computed)
     - requires a single boolean predicate, meaning it has to be manually batched (`vmap`-ed) over a batch of data conditions
 
 *Note: Confusingly, there also exists `jax.numpy.select`, not `jax.lax.select`, but we do not discuss this here.*
@@ -487,7 +487,7 @@ val = jax.cond(c, lambda z: a * z, lambda z: b * z, z) # argument version
 
 ### Loops
 
-JAX can trace Python loops, the main justification for using a JAX loop-like
+JAX can trace Python loops, the main justifications for using a JAX loop-like
 operator instead of a Python loop are:
 - *1. to speed up compilation*
     - since JAX does not know of a Python loop, it simply traces computation,
@@ -498,7 +498,7 @@ operator instead of a Python loop are:
 JAX provides 3 looping routines:
 - `jax.lax.scan` runs a fixed number of iterations sequentially and returns all of history
 - `jax.lax.fori_loop` runs a fixed number of iterations sequentially and returns last value
-- `jax.lax.while_loop` runs a variable number of iterations adn returns the last value
+- `jax.lax.while_loop` runs a variable number of iterations and returns the last value
 
 Noticeably, JAX is missing a version which runs a variable number of iterations,
 returning the history. This is likely, because the use case might not be common
@@ -548,7 +548,7 @@ for i in range(10):
 jax.lax.fori_loop(0, 10, lambda i, x: A @ x, x0)
 ```
 
-3. `jax.lax.while_loop` return only the last value for a variable number of iterations
+3. `jax.lax.while_loop` returns only the last value for a variable number of iterations
 
 ```python
 # a simple ODE, which we terminate once we exceed position x[0] = 0.5
@@ -575,7 +575,7 @@ print(jax.lax.while_loop(cond_fn, body_fn, (0, x0)))
 What if we want to perform a computation a variable number of times, while
 retaining history? We can make our own loop version by combining `scan` with
 `cond` to execute a function for a maximum number of iterations (an upper bound
-on the number of iterations), but we avoid doing work once the end condition is
+on the number of iterations), but we avoid unnecessary computations once the end condition is
 met, by using `cond`.
 
 ```python
@@ -614,7 +614,7 @@ for JAX. These, in short, are:
 | [haiku](https://github.com/deepmind/dm-haiku) | developed by DeepMind, it closely resembles PyTorch |
 | [flax](https://github.com/google/flax) | the most popular library, developed by Google (like JAX) |
 
-In our work, we evaluated these libraries these main metrics:
+In our work, we qualitatively evaluated these libraries on these main metrics:
 - *compilation speed* - how quickly the resulting ML models can be compiled with `jax.jit`
 - *documentation quality*
 - *adoption* - how widely adopted the library is
@@ -627,7 +627,7 @@ In our work, we evaluated these libraries these main metrics:
 | haiku   | ✓ | ✓ | ~ | ✓ | ✓ |
 | flax | ~ | ✓ | ✓ | ✓ | ✓ |
 
-Flax is most definitely most widely adopted and recently includes a new module
+Flax is most undoubtedly most widely adopted and recently includes a new module
 initialization interface that closely resembles PyTorch, making it easy for us
 to jump between PyTorch and JAX. However, we ran into long compilation problems
 with Flax when working on (admittedly very sprawling)
@@ -641,7 +641,7 @@ the support is currently conceptually confusing to us.
 
 For this reason, we are currently using Haiku!
 
-## THE `jfi` package (friendly JAX interface)
+## The `jfi` package (friendly JAX interface)
 
 In our research and coming from PyTorch, we found it much easier to work with
 JAX by writing a library of utility functions
@@ -659,8 +659,8 @@ Check out our work here:
 
 ----
 
-## Resource (other great JAX resources)
+## Resources/References
 
-----
-
-## References
+- General JAX documentation: [https://jax.readthedocs.io/en/latest/](https://jax.readthedocs.io/en/latest/)
+- PyTree package taking the JAX PyTrees philosophy to its beautiful extreme: [https://github.com/patrick-kidger/equinox](https://github.com/patrick-kidger/equinox)
+- Advanced Tutorial on how to extend the JAX library in C++: [https://github.com/dfm/extending-jax](https://github.com/dfm/extending-jax)

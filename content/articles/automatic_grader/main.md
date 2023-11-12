@@ -1,3 +1,7 @@
+Prompt:
+
+Read and proofread the following text. Focus on language correctness, introducing minimal changes. First, output the text as is with markdown bolded passages that are problematic (from language correctness perspective), then output a list of improvement suggestions corresponding to the bolded fragments. Ignore existing markdown markers (escape them in your output). The text: 
+
 # Introduction
 
 The purpose of this article is to present our approach to the problem of
@@ -5,21 +9,21 @@ automatically grading short answers by students given a handful of examples of
 graded answers for a particular question. The additional particular requirements
 for our problem setting are
 - the model must be very computationally efficient
-    - the number of supported students can be high and the revenue per student very low
+    - the number of supported students can be high and the funding per student very low
     - the model should be able to perform live regrades in a matter of
     milliseconds for each student
 - the model must be resistant to adversarial attacks
     - inputting gibberish or a completely irrelevant answer should never result
     in a grade other than 0
-- the model must be able to support questions from various of science and
-liberal arts fields and in multiple languages
+- the model must be able to support questions from various branches of science
+and liberal arts and in multiple languages
     - it should work for any subject taught in school
-    - it should be usable by at least the major languages
+    - it should support at least the major world languages
 We propose to solve the problem by using existing multi-lingual language
 embedding models, which convert questions and answers into a fixed-length
 real-numbered context vector, to which we apply online regression methods.
 In order to make the model additionally resistant to adversarial inputs, we
-build and additional *relevancy* model whose purpose is to determine if the
+build an additional *relevancy* model whose purpose is to determine if the
 answer is relevant to the question (even if it is incomplete or wrong, does it
 at least pertain to the subject).
 
@@ -39,7 +43,7 @@ language or completely inapplicable)
 The field of natural language processing (NLP) has a long history and includes
 many completely different approaches from explicit text structure discovery to
 deep learning methods, most recently (around 2017) involving the transformer
-model (TODO add link).
+model [https://arxiv.org/abs/1706.03762](https://arxiv.org/abs/1706.03762).
 
 We will focus on the recent deep-learning approaches and will use a
 transformer-based embedding model. In this paradigm, the text to be embedded
@@ -63,12 +67,15 @@ The purpose of a tokenizer is to convert a text into a set of numbers that a
 language model can ingest. A tokenizer typically has a fixed dictionary where
 each word (or a word fragment) corresponds to a unique integer index. The
 tokenizer then converts each word in the text into the corresponding integer
-index. To avoid an exploding size of the vocabulary, tokenizers sometimes split
+index. To avoid an excessively large vocabulary, tokenizers sometimes split
 longer words into smaller segments that are shared between words. These short
 words and common fragments are collectively known as *tokens*. For English, a
 text of length N will usually be converted into 1.33 N tokens.
 
-Apart from words, the vocabulary of a tokenizer can also contain special tokens like end of text indicators, end of sentence indicators, unknown word indicators, etc. An unknown word is either split into existing tokens (if it can be decomposed as such) or replaced with the *unkown word* token. 
+Apart from words, the vocabulary of a tokenizer can also contain special tokens
+like end of text indicators, end of sentence indicators, unknown word
+indicators, etc. An unknown word is either split into existing tokens (if it can
+be decomposed as such) or replaced with the *unknown word* token. 
 
 A tokenizer converts words into numbers, but sometimes splits longer (or
 unknown) words into shorter segments to both avoid an exploding size of the
@@ -82,7 +89,9 @@ model receiving unrelated inputs.
 <img src="../../../assets/images/tokenization_illustration.svg" style="width:50%;max-width:500px" />
 <br>
 <p align="left">
-Fig: A tokenizer converts words into numbers, but sometimes splits longer (or unknown) words into shorter segments to both avoid an exploding size of the vocabulary and to allow the model to generalize to new words.
+Fig: A tokenizer converts words into numbers, but sometimes splits longer (or
+unknown) words into shorter segments to both avoid an exploding size of the
+vocabulary and to allow the model to generalize to new words.
 </p>
 </p>
 
@@ -104,12 +113,12 @@ purpose of achieving good generalization properties).
 <img src="../../../assets/images/downstream_language_model.svg" style="width:80%;max-width:800px" />
 <br>
 <p align="left">
-Fig: An pre-trained embedding model followed by a downstream model is a common
+Fig: A pre-trained embedding model followed by a downstream model is a common
 approach to solving natural language processing tasks.
 </p>
 </p>
 
-Modern embedding model often use the transformer architecture. Because most
+Modern embedding models often use the transformer architecture. Because most
 transformers are designed to work on real-valued vector representation of words,
 the integer output of the tokenizer is often first passed through an *embedding
 layer* which simply projects an integer index into a random (but potentially
@@ -118,17 +127,22 @@ learnable) real-valued vector.
 Training and inference is often more efficiently done in batches, but most
 transformer architecture require that all inputs in a batch have the same
 length. Most tokenizers are designed to pad all, but the shortest input in a
-batch with special pad tokens which are supposed to not affect that text
-fragment embedding value. A text fragment with and without pad tokens should
-produce the same embedding value (which is mostly the case, except when the
-embedding model using very low precision arithmetic, like `int8`, as some errors
-tend to accumulate). Additionally, most embedding models are designed with a max
-input text length and the associate tokenizer will often truncated longer texts
-by simply cutting off the end of the text after the maximum numbered token.
+batch with special pad tokens which are supposed to not affect that batch entry
+fragment embedding value. A text fragment (a batch entry) with and without pad
+tokens should produce the same embedding value (which is usually the case;
+except when the embedding model is using very low precision arithmetic, like
+`int8`, as some errors tend to accumulate). Additionally, most embedding models
+are designed with a max input text length and the associated tokenizer will often
+truncate longer texts by simply cutting off the end of the text after the
+maximum numbered token.
 
-The embedding model is simply a fixed-length map from a variable length text to a fixed-length real-valued vector. For transformer models, the embedding is often simply a summation of the final embedding of each token in the text.
+The embedding model is simply a fixed-length map from a variable length text to
+a fixed-length real-valued vector. For transformer models, the embedding is
+often simply a summation of the final embedding of each token in the text.
 
-$$ f_\text{embedding}: \text{"brown dog..."} \rightarrow \mathbb{R}^{512} $$
+$$
+f_\text{embedding}: \text{"brown dog..."} \rightarrow \mathbb{R}^{768}
+$$
 
 where 768 is an example number dependent on the model architecture.
 
@@ -171,7 +185,8 @@ hyperparameter tuning (batch size, learning rate, dropout, optimizer) using
 
 The dataset is a combination of several instruction datasets (e.g.,
 [RedPajama](https://huggingface.co/datasets/togethercomputer/RedPajama-Data-Instruct))
-(popularized by large language model research). Negative example are produced by randomly assigning questions (instructions) to responses.
+(popularized by large language model research). Negative examples are produced by
+randomly assigning questions (instructions) to responses.
 
 ----
 
@@ -179,19 +194,263 @@ The dataset is a combination of several instruction datasets (e.g.,
 
 We use the multilingual BERT model for its excellent ratio of generalization
 capability and computational efficiency. The model weights (expressed in
-`float32` arithmetic) are only around 600 MB. TODO expand
+`float32` arithmetic) are only around 600 MB.
 
 ----
 
 # Meta-learning the Model
 
-TODO
+The meta-learning problem is to improve the result of an adaptation process
+
+$$
+\begin{aligned}
+\text{min}_p ~~ & \ell_\text{eval}\left( y, \hat{y} = f_\text{model}\big(\theta, x\big) \right) \\
+\text{subject to} ~~ & \theta = \text{adapt}\left( p, x \right) \\
+\end{aligned}
+$$
+
+where $y$ is the model target and $x$ is the data.
+
+In other words, it's a standard optimization problem where the model
+parameters are obtained from some adaptation process. The standard examples are:
+- **hyperparameter optimization** - $p$ are hyperparameters, and the
+$\text{adapt}()$ process is the full training of the ML model
+- **meta-learning classification** - $p$ are initial model weights and the
+$\text{adapt}()$ process is a few gradient descent steps
+- **optimal controller tuning** - $p$ is the cost function of a controller (e.g.,
+cost matrices in the Linear Quadratic Regulator (LQR) problem), the
+$\text{adapt}()$ process is the solution to the LQR problem (the Riccati
+equation solution)
+- **rational intent inference** - $p$ is the set of weights a rational agents
+assigns to rewards in the world and the $\text{adapt}()$ process is the result
+of rational planning
+- **online learning** - $p$ parametrizes e.g., how aggressively we should learn from
+examples observed online and the $\text{adapt}()$ process of adapting our model
+online from new observations
+
+## Our case: online learning of assignment grading
+
+In our case, we use meta-learning for online learning. The problem is learning a
+grading model from graded assignment examples: what type of grade should a
+particular student response receive.
+
+We attempt to use a fully data-driven approach. We do not perform any analysis
+of the text, we learn a numerical model that maps from the text of the question
+and the student response to their grade. For each question, we use a handful of
+graded responses (e.g., 20-30) and a semantic language embedding model to
+convert the question and responses to fixed-length floating point vector. We
+then fit a numerical classification model from the embedding vectors to the
+grade.
+
+## Usual meta-learning methods
+
+As a quick detour, let's consider two simplest ways to implement this online
+meta-learning adaptation problem:
+- MAML-style meta-learning
+    - adapt your model from a base model by taking a few steps of gradient
+    descent, then differentiate through this adaptation process using automatic
+    differentiation software
+    - MAML is the simplest form of gradient-based meta-learning
+- least-squares adaptation
+    - adapt a linear model of the form $\hat{y} = \theta^T x$ where $x$ is a
+    vector and $y$ is a scalar
+    - in most cases, $x$ is not the data directly (like the text of the student
+    response), but an embedding by a deep learning model
+    - the adaptation process is minimizing the squared difference between
+    observation and the model prediction
+
+    $$
+    \text{minimize}_\theta ~~ || y - \hat{y} ||^2 = || y - \theta^T x ||^2
+    $$
+
+    - which has a closed-form solution
+
+    $$
+    \theta^\star = \left( x x^T \right)^{-1} x y
+    $$
+
+    - because the last operation is a simple linear algebra operation (a matrix
+    solve or matrix inverse operation), the adaptation process can be
+    differentiated through using automatic differentiation software
+
+## Problems with the usual meta-learning methods
+
+There are however, several problems with these two approaches:
+- MAML tends to require large networks to work efficiently, this leads to high
+latency and high energy cost of running the model
+- MAML tends to be fairly data inefficient in training (several steps of
+gradient descent are, to begin with, a very small adaptation); this means long
+and expensive training
+- least-squares adaptation works very well for linear regression models, where
+the task is predicting a scalar, but is of limited value for classification; 
+classification both (a) tends to work better for grade prediction and
+(b) gives a richer signal, i.e. being able to indicate the answer is either
+completely wrong or completely right, giving high probability to a score of 0
+and a score of 10, instead of predicting 5
+
+## Our approach: online logistic regression
+
+For these reasons, a much better approach is to use a linear model for logistic
+classification. The linear model maps (potentially embedded) data $x$ to a
+vector of the same length as there are grades (e.g., 11 classes if the grade
+varies between 0 and 10 inclusively) and the objective to minimize is the
+logistic loss.
+
+$$
+\ell(y, \hat{y}) = - \sum_{i=1}^N e_i \log \hat{s}_i
+$$
+
+where
+
+$$
+\hat{s}_i = \frac{e^{\hat{y}_i}}{\sum_{j=1}^N e^{\hat{y}_j}}
+$$
+
+and
+
+$$
+e_i = \begin{cases}
+1 ~~ \text{if} ~~ y = i \\
+0 ~~ \text{otherwise}
+\end{cases}
+$$
+
+This is a very common loss function for classification problems referred to as
+cross-entropy or multiclass logistic loss. $e_i$ acts as an indicator function,
+selecting only the softmax output ($s_i$) of the correct class. However, since
+softmax is normalized over all dimensions of the problem output, the model is
+encouraged to both increase the probability ($s_i$) of the correct class and
+decrease the probability of other classes $(s_{i \neq j})$.
+
+## Solution to the online logistic regression problem
+
+This loss function is in fact a convex function implying it has a single global
+minimum. However, there is not closed-form solution, the optimization is solved
+iteratively using the Newton's method.
+
+For optimality, we need the gradient of the loss function with respect to the
+model parameters to be zero.
+
+$$
+\nabla_p \ell(y, \hat{y}) = 0
+$$
+
+And we can iteratively apply the Newton's method to find that zero-gradient point:
+
+$$
+p^{(k+1)} = p^{(k)} - \nabla^2_p \ell(y, \hat{y}; p^{(k)})^{-1} \nabla_p \ell(y, \hat{y}; p^{(k)})
+$$
+
+Because the loss function is convex, this iterative process is guaranteed to
+converge in a few steps.
+
+## Differentiating through the solution for meta-learning
+
+The easiest way of differentiating through an iterative optimization process
+(like the Newton's method in our case) is to simply keep track of the
+computation graph performed and exploit automatic differentiation software to
+obtain gradients through the adaptation process.
+
+However, for logistic regression, it is often far easier to compute the gradient
+and Hessian terms in the Newton's method iteration using automatic
+differentiation itself, which implies many levels of differentiation when
+attempting to then differentiate through the adaptation process itself. This is
+more of a practical problem, since doing so certainly results in large memory usage
+(having to store the entire optimization history) and can be computationally slow
+(depending on the level of computation graph optimization provided by the
+automatic differentiation software used). Instead, we propose to use the
+implicit function theorem, which lets us differentiate through this adaptation
+process with ease.
+
+
+### The gradients we need to compute
+
+In order to minimize the meta-learning objective:
+
+$$
+\begin{aligned}
+\text{min}_p ~~ & \ell_\text{eval}\left( y, \hat{y} = f_\text{model}\big(\theta, x\big) \right) \\
+\text{subject to} ~~ & \theta = \text{adapt}\left( p, x \right) \\
+\end{aligned}
+$$
+
+We need to be able to compute the gradient
+
+$$
+\nabla_p \ell_\text{eval}
+$$
+
+however, the eval loss really depends on $\theta$ which itself depends on $p$, so we really have
+
+$$
+\nabla_p \ell_\text{eval} = \nabla_\theta \ell_\text{eval} \nabla_p \theta
+$$
+
+The gradient $\nabla_\theta \ell_\text{eval}$ can be obtained easily with any
+automatic differentiation software. The gradient $\nabla_p \theta$ can be
+computed using the *implicit function theorem*.
+
+### The implicit function theorem technique
+
+The implicit function theorem gives a way of obtaining derivatives with respect
+to a variable defined as an implicit function:
+
+$$
+g(z) = 0
+$$
+
+Here, $z$ is defined as satisfying the implicit function $g(z) = 0$. The value
+of $z$ is not given explicitly. The implicit function theorem states that if $g$
+is further parameterized by a parameter $p$, we can obtain derivatives of $z$
+with respect to $p$.
+
+$$
+\nabla_p z = -\left(\nabla_z g(z)\right)^{-1} \nabla_p g(z) ~~~~~ \text{if} ~~~~~ g(z, p) = 0
+$$
+
+
+### Applying the implicit function theorem to the meta-learning problem
+
+Returning to our notation, we know that $\theta$, the parameters adapted in the
+Newton's method are optimal, so they must satisfy the function
+
+$$
+\nabla_\theta \ell(y, \hat{y} = \theta^T x) = 0
+$$
+
+defines an implicit function for $\theta$. We can then apply the implicit
+function theorem directly.
+
+$$
+\nabla_p \theta = -\left( \nabla_\theta \nabla_\theta \ell(y, \theta^T x) \right)^{-1} \left( \nabla_p \nabla_\theta \ell(y, \theta^T x)\right)
+$$
+
+This has two main advantages:
+- **memory-usage:** it does not rely on the Newton's method optimization history
+- which yields memory-usage improvements
+- **efficient computation:** it only requires 2 levels of differentiation which
+is much easier for most automatic differentiation software to compute
+efficiently
 
 ----
 
 # Adapting the Relevance
 
-TODO
+Separately, we can also adapt our relevance model. The model is non-linear, so
+we cannot directly apply the meta-learning technique from the previous paragraph. 
+
+We instead adapt the relevance model online, for each question separately, using
+gradient descent while observing the evaluation loss. We choose the number of
+online gradient descent steps that leads to the lowest evaluation loss (we split
+the small online ground-truth data into a training and an evaluation set
+randomly).
+
+This is a MAML-like procedure of applying gradient descent online. However, we
+do not specifically train the relevance model to be good at this adaption. This
+is not strictly meta-learning since we do not *learn* the relevance model to be
+good at online adaptation, but the fact that we dynamically choose the number of
+adaptation steps to minimize an evaluation loss improves the results over static
+adaptation.
 
 ----
 
@@ -213,10 +472,6 @@ model, where the embedding cost is strictly linearly dependent on the number of
 embedded answers and both the online adaptation and classification costs are
 virtually negligible in comparison to the embedding cost.
 
-## Computational Cost Comparison
-
-TODO
-
 ----
 
 # Data Generation
@@ -227,12 +482,12 @@ from real responses, since labeling is relatively inexpensive:
 - relevance scores are binary and they are often easy to assign
 
 However, training both models could benefit from large amounts of synthetic
-data. Recent advanced in large language models yield instruction-agents, models
-which can generate natural sounding text in a variety of language. 
+data. Recent advances in large language models yield instruction-agents, models
+which can generate natural sounding text in a variety of languages.
 
-We can easily use a model like this (in this case ChatGPT-3.5 from OpenAI TODO
-add link) to generate examples of relevant and irrelevant synthetic responses for
-training. Consider the example
+We can easily use a model like this (in this case ChatGPT-3.5 from OpenAI) to
+generate examples of relevant and irrelevant synthetic responses for training.
+Consider the example:
 
 Instruction:
 > I want you to generate examples of relevant and irrelevant answers to the

@@ -1,0 +1,318 @@
+<html lang="en">
+
+  <head>
+    <title>Robert Dyro</title>
+    <meta name="author" content="Robert Dyro" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="../../static/stylesheet.css" />
+    <link rel="stylesheet" href="../../static/pygments.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
+  </head>
+  <body>
+    <table class="bodytable">
+      <tbody>
+        <tr style="outline:thin solid black;width=100%;padding:0px">
+          <td style="width:75%;padding:10px;vertical-align:middle;">
+            <h2>Post-training Compression of Neural Network via SVD</h2><br/><strong>Robert Dyro</strong>
+          </td>
+          <td style="padding:10px;width:25%;vertical-align:middle">
+            <a href="/images/nn_svd_compression2.png">
+              <img src="/images/nn_svd_compression2.png" alt="alttext" width="160" height="auto" />
+            </a>
+          </td>
+        </tr>
+        <tr style="width:100px"><td colspan="2"></td></tr>
+        <tr style="width:100%;padding:0px">
+          <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
+            <table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/hessian_sketching_lines.svg" style="max-width:400px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: Approximating trained NN weights using SVD.</p>
+
+ <p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \tilde{W} = \left(U_{:,1:k}\right) \text{diag}\left(\Sigma_{1:k}\right) \left(V_{:,1:k}\right)^T "> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>=</mo> <mrow> <mo>(</mo> <msub> <mi>U</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mtext>diag</mtext> <mrow> <mo>(</mo> <msub> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <msup> <mrow> <mo>(</mo> <msub> <mi>V</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mi>T</mi> </msup> </math></p> 
+
+</td></tr>
+</table><h1>Introduction</h1>
+<p>A well known demonstration of how singular value decomposition (SVD) can extract
+the most important features of a matrix is image compression where only a couple
+of components from the full SVD decomposition of the original image are
+retained.  When the image is reconstructed, it tends to resemble the original
+one, but the representation occupies much less space. The compression ratio can
+often result in a 100x reduction in size (compared to a naive storage).<sup class="footnote-ref" id="fnref-1"><a href="#fn-1">1</a></sup></p>
+<p>Here's an algorithm for compressing an image using SVD:</p>
+<ul>
+<li>Read the image into a matrix <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A"> <mi>A</mi> </math></span> (if the image has many channels, execute this algorithm for every channel)</li>
+<li>decompose the image matrix to SVD components <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A = U \text{diag}\left(\Sigma\right) V^T"> <mi>A</mi> <mo>=</mo> <mi>U</mi> <mtext>diag</mtext> <mrow> <mo>(</mo> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mo>)</mo> </mrow> <msup> <mi>V</mi> <mi>T</mi> </msup> </math></span> , where<ul>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="A \in \mathbb{R}^{m \times n}"> <mi>A</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>m</mi> <mo>&#x00D7;<!-- × --></mo> <mi>n</mi> </mrow> </msup> </math></span> .</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="U \in \mathbb{R}^{m \times \text{min}\{m, n\}}"> <mi>U</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>m</mi> <mo>&#x00D7;<!-- × --></mo> <mtext>min</mtext> <mo fence="false" stretchy="false">{</mo> <mi>m</mi> <mo>,</mo> <mi>n</mi> <mo fence="false" stretchy="false">}</mo> </mrow> </msup> </math></span> .</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\Sigma \in \mathbb{R}^{\text{min}\{m, n\}}"> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mtext>min</mtext> <mo fence="false" stretchy="false">{</mo> <mi>m</mi> <mo>,</mo> <mi>n</mi> <mo fence="false" stretchy="false">}</mo> </mrow> </msup> </math></span> .</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="V \in \mathbb{R}^{n \times \text{min}\{m, n\}}"> <mi>V</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>n</mi> <mo>&#x00D7;<!-- × --></mo> <mtext>min</mtext> <mo fence="false" stretchy="false">{</mo> <mi>m</mi> <mo>,</mo> <mi>n</mi> <mo fence="false" stretchy="false">}</mo> </mrow> </msup> </math></span> .</li>
+<li>(you can use a truncated SVD to only compute the first <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> components)</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\text{diag}\left(\cdot \right)"> <mtext>diag</mtext> <mrow> <mo>(</mo> <mo>&#x22C5;<!-- ⋅ --></mo> <mo>)</mo> </mrow> </math></span> means constructing a diagonal matrix from the input vector</li>
+</ul>
+</li>
+<li>retain only the first <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> components by whatever means of choosing <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> (probably inspecting the reconstruction error)</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\tilde{A} = \left(U_{:,1:k}\right) \text{diag}\left(\Sigma_{1:k}\right) \left(V_{:,1:k}\right)^T"> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>A</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>=</mo> <mrow> <mo>(</mo> <msub> <mi>U</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mtext>diag</mtext> <mrow> <mo>(</mo> <msub> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <msup> <mrow> <mo>(</mo> <msub> <mi>V</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mi>T</mi> </msup> </math></span> is the compressed image</li>
+<li>the compression ratio, how much less information we're storing to represent the image is just<ul>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="f_\text{compress} = \frac{m k + k + n k}{m n}"> <msub> <mi>f</mi> <mtext>compress</mtext> </msub> <mo>=</mo> <mfrac> <mrow> <mi>m</mi> <mi>k</mi> <mo>+</mo> <mi>k</mi> <mo>+</mo> <mi>n</mi> <mi>k</mi> </mrow> <mrow> <mi>m</mi> <mi>n</mi> </mrow> </mfrac> </math></span> * or <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k = \text{round}\left(\frac{f_\text{compress} m n}{m + n + 1} \right)"> <mi>k</mi> <mo>=</mo> <mtext>round</mtext> <mrow> <mo>(</mo> <mfrac> <mrow> <msub> <mi>f</mi> <mtext>compress</mtext> </msub> <mi>m</mi> <mi>n</mi> </mrow> <mrow> <mi>m</mi> <mo>+</mo> <mi>n</mi> <mo>+</mo> <mn>1</mn> </mrow> </mfrac> <mo>)</mo> </mrow> </math></span> if we want to target a particular compression fraction</li>
+</ul>
+</li>
+</ul>
+<blockquote><p>Compression Ratio === <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="f_\text{compress} = \frac{|U| + |\Sigma| + |V|}{|A|} = \frac{(m + n + 1) k}{m n}"> <msub> <mi>f</mi> <mtext>compress</mtext> </msub> <mo>=</mo> <mfrac> <mrow> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mi>U</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mo>+</mo> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mo>+</mo> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mi>V</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> </mrow> <mrow> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> <mi>A</mi> <mrow class="MJX-TeXAtom-ORD"> <mo stretchy="false">|</mo> </mrow> </mrow> </mfrac> <mo>=</mo> <mfrac> <mrow> <mo stretchy="false">(</mo> <mi>m</mi> <mo>+</mo> <mi>n</mi> <mo>+</mo> <mn>1</mn> <mo stretchy="false">)</mo> <mi>k</mi> </mrow> <mrow> <mi>m</mi> <mi>n</mi> </mrow> </mfrac> </math></span> This approach is commonly known in literature as T-SVD (truncated SVD).</p>
+</blockquote>
+<table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/nn_svd_compression2.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: SVD image compression, retaining only 5 principal
+components, for a compression to 2% of original information.</p>
+</td></tr>
+</table><h1>Question: Can we use SVD to compress a neural network?</h1>
+<p>The idea behind this project is to investigate whether an SVD compression can be
+used to reduce the memory (storage) footprint of a trained neural network (NN) after
+it has been trained.</p>
+<p align="center">
+<img src="/images/model_vgg19.svg" style="max-width:900;width:100%">
+</p><h2>Post-training Compression</h2>
+<p>This problem is addressed in the field of post-training compression of NNs. 
+Most approaches to reducing the model footprint focus exclusively on
+only 1 type of target for compression: matrix weights. Biases, activations,
+buffers and other learned parameters are typically much smaller in size to
+weights and so are left uncompressed. Weights are typically:</p>
+<ul>
+<li>linear layer weight <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W"> <mi>W</mi> </math></span> <em> flatted convolutional layer weight <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\text{flatten}\left(C\right) = W_C"> <mtext>flatten</mtext> <mrow> <mo>(</mo> <mi>C</mi> <mo>)</mo> </mrow> <mo>=</mo> <msub> <mi>W</mi> <mi>C</mi> </msub> </math></span> </em> where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="C \in \mathbb{R}^{c_i \times c_o \times m \times n}"> <mi>C</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <msub> <mi>c</mi> <mi>i</mi> </msub> <mo>&#x00D7;<!-- × --></mo> <msub> <mi>c</mi> <mi>o</mi> </msub> <mo>&#x00D7;<!-- × --></mo> <mi>m</mi> <mo>&#x00D7;<!-- × --></mo> <mi>n</mi> </mrow> </msup> </math></span> is the convolutional layer weight<ul>
+<li>and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_C \in \mathbb{R}^{c_i \times \left(c_o m n\right)}"> <msub> <mi>W</mi> <mi>C</mi> </msub> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <msub> <mi>c</mi> <mi>i</mi> </msub> <mo>&#x00D7;<!-- × --></mo> <mrow> <mo>(</mo> <msub> <mi>c</mi> <mi>o</mi> </msub> <mi>m</mi> <mi>n</mi> <mo>)</mo> </mrow> </mrow> </msup> </math></span> is the flattened weight</li>
+</ul>
+</li>
+<li><p>linear projection layer in an attention layer <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_q, W_k, W_v"> <msub> <mi>W</mi> <mi>q</mi> </msub> <mo>,</mo> <msub> <mi>W</mi> <mi>k</mi> </msub> <mo>,</mo> <msub> <mi>W</mi> <mi>v</mi> </msub> </math></span> The most popular post-training compression technique is quantization where the
+compression target matrices are converted from single- (float32) or
+half-precision (float16) floating point numbers into 4-bit or 8-bit integers.
+There are multiple ways to do this, the simplest of which is to just round to
+the nearest point on an equally space grid from the minimum to the maximum in
+the range.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" w_{\text{quantized}} = \text{round}\left(\frac{w - \min\{w\}}{\max\{w\} - \min\{w\}} \times \left(2^b - 1\right)\right) "> <msub> <mi>w</mi> <mrow class="MJX-TeXAtom-ORD"> <mtext>quantized</mtext> </mrow> </msub> <mo>=</mo> <mtext>round</mtext> <mrow> <mo>(</mo> <mfrac> <mrow> <mi>w</mi> <mo>&#x2212;<!-- − --></mo> <mo movablelimits="true" form="prefix">min</mo> <mo fence="false" stretchy="false">{</mo> <mi>w</mi> <mo fence="false" stretchy="false">}</mo> </mrow> <mrow> <mo movablelimits="true" form="prefix">max</mo> <mo fence="false" stretchy="false">{</mo> <mi>w</mi> <mo fence="false" stretchy="false">}</mo> <mo>&#x2212;<!-- − --></mo> <mo movablelimits="true" form="prefix">min</mo> <mo fence="false" stretchy="false">{</mo> <mi>w</mi> <mo fence="false" stretchy="false">}</mo> </mrow> </mfrac> <mo>&#x00D7;<!-- × --></mo> <mrow> <mo>(</mo> <msup> <mn>2</mn> <mi>b</mi> </msup> <mo>&#x2212;<!-- − --></mo> <mn>1</mn> <mo>)</mo> </mrow> <mo>)</mo> </mrow> </math></p></li>
+</ul>
+<p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="b"> <mi>b</mi> </math></span> is the number of bits available.</p>
+<p>Finally, the computation with quantized weights is typically done by
+dequantizing the matrix into the smallest floating point representation that
+does not introduce numerical problems, usually half-precision (float16) and
+performing regular matrix multiplication with the right hand-side.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" y = W x ~~~~ \rightarrow ~~~~ \tilde{y} = \text{dequantize}\left(W\right) x "> <mi>y</mi> <mo>=</mo> <mi>W</mi> <mi>x</mi> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mo stretchy="false">&#x2192;<!-- → --></mo> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>y</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>=</mo> <mtext>dequantize</mtext> <mrow> <mo>(</mo> <mi>W</mi> <mo>)</mo> </mrow> <mi>x</mi> </math></p><p>For much faster matrix multiplication, the matrix is usually dequantized in
+small optimized blocks to make best use of the modern GPU architectures' local
+memory cache and fastest memory access patterns.</p>
+<h2>SVD Compression</h2>
+<p>The SVD compression of a matrix is an extremely simple technique. For every
+weight to compress, we compute <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W = U \text{diag}\left(\Sigma\right) V^T"> <mi>W</mi> <mo>=</mo> <mi>U</mi> <mtext>diag</mtext> <mrow> <mo>(</mo> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mo>)</mo> </mrow> <msup> <mi>V</mi> <mi>T</mi> </msup> </math></span> and
+then retain only the first <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> components, so that</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \tilde{W} = \left(U_{:,1:k}\right) \text{diag}\left(\Sigma_{1:k}\right) \left(V_{:,1:k}\right)^T "> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>=</mo> <mrow> <mo>(</mo> <msub> <mi>U</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mtext>diag</mtext> <mrow> <mo>(</mo> <msub> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <msup> <mrow> <mo>(</mo> <msub> <mi>V</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mi>T</mi> </msup> </math></p><h2>Combining SVD and Quantization</h2>
+<p>Because quantization both results in enormous memory savings and can be applied
+to any matrix, we use <strong>quantized SVD compression</strong> as the technique of choice
+in this project.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \tilde{W} = \left(U_{:,1:k}\right)_\text{quantized} \text{diag}\left(\Sigma_{1:k}\right) \left(V_{:,1:k}\right)_\text{quantized}^T "> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>=</mo> <msub> <mrow> <mo>(</mo> <msub> <mi>U</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mtext>quantized</mtext> </msub> <mtext>diag</mtext> <mrow> <mo>(</mo> <msub> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <msubsup> <mrow> <mo>(</mo> <msub> <mi>V</mi> <mrow class="MJX-TeXAtom-ORD"> <mo>:</mo> <mo>,</mo> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> <mo>)</mo> </mrow> <mtext>quantized</mtext> <mi>T</mi> </msubsup> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\Sigma_{1:k}"> <msub> <mi mathvariant="normal">&#x03A3;<!-- Σ --></mi> <mrow class="MJX-TeXAtom-ORD"> <mn>1</mn> <mo>:</mo> <mi>k</mi> </mrow> </msub> </math></span> is not quantized, because its size is usually negligible.</p>
+<h2>Experimental Approach</h2>
+<p>We investigate the combined SVD + quantization compression technique on 4
+different, representative and popular neural networks</p>
+<ul>
+<li>vision model VGG-19</li>
+<li>vision model ResNet-101</li>
+<li>NLP model BERT</li>
+<li>NLP model Phi-2</li>
+</ul>
+<p>We use the excellent <code>bitsandbytes</code> library to perform the compression. We do
+not propose to focus on the inference speed of this combined SVD + quantization
+compression scheme; that would require writing custom GPU kernels which is
+outside the scope of this work. Presumably, the smaller the model footprint, the
+faster the inference speed as matrix-multiplication is often memory-bound.</p>
+<p>Deciding on the compression fraction <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="f_\text{compress}"> <msub> <mi>f</mi> <mtext>compress</mtext> </msub> </math></span> is a bit of an art. As
+a way to make the experiments tractable, we decide on the following rank
+selection rule:</p>
+<blockquote><p>set <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> compression rank to a value that produces an error of less than <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\epsilon"> <mi>&#x03F5;<!-- ϵ --></mi> </math></span> on an batch example input</p>
+</blockquote>
+<p>Since the error is a monotonic function of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> , we can use <strong>binary search</strong> to
+find the smallest <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> that satisfies the error condition.</p>
+<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">evaluate_error</span><span class="p">(</span><span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rescale</span><span class="p">(</span><span class="n">CompressionConfig</span><span class="p">(</span><span class="n">Compression</span><span class="o">.</span><span class="n">SIZE_K</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="n">new_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
+    <span class="n">err</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">new_output</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">output</span><span class="p">)</span> <span class="o">-</span> <span class="n">output</span><span class="p">)</span> <span class="o">/</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">err</span>
+</pre></div>
+<p>Finally, if the required error cannot be satisfied without exceeding such a <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> that the compression ratio is &gt; 1.0, we simply change the layer back to its
+linear form. No need to use SVD if we would exceed the number of parameters of
+the linear layer.</p>
+<h1>Results</h1>
+<h2>VGG19 ImageNet Classification Model</h2>
+<p>We start with the VGG19 network trained on ImageNet. The inspiration for this
+starting point is in the <em>Sparse low rank factorization for deep neural network
+compression</em> paper.<sup class="footnote-ref" id="fnref-2"><a href="#fn-2">2</a></sup></p>
+<p>The reason why VGG model family is an attractive target for SVD weight
+compression is because over 90% of model parameters are contained in the
+extremely large linear classifier layers at the end of the network.</p>
+<p>By scanning the layer error threshold <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\epsilon"> <mi>&#x03F5;<!-- ϵ --></mi> </math></span> , we create and plot two
+dependent variables: the model size (in bytes) vs a performance measure. For
+VGG19, performance is the top-1 accuracy on the ImageNet validation set.</p>
+<p>For VGG19, we only compress the linear layers (in the classifier).</p>
+<table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/quantized_svd_vgg.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: Performance of Quantized SVD VGG19 model.</p>
+</td></tr>
+</table><h2>ResNet-101 ImageNet Classification Model</h2>
+<p>Following from VGG19, we turn to the ResNet-101 model. The ResNet model family
+contains linear layers, but they are much smaller. The vast majority of
+parameters is contained in the convolutional layers. We compress both the linear
+layers and the convolutional layers, the latter by first flattening all, but the
+first (output channels) dimension -- thus converting the 4D convolutional layer
+weight into a 2D matrix.</p>
+<table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+    <img src="/images/quantized_svd_resnet.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+    <p align="center" style="max-width:400px">Fig: Performance of Quantized SVD ResNet-101 model.</p>
+</td></tr>
+</table><h2>BERT</h2>
+<p>After ResNet, we attempt to compress the BERT model. BERT is a transformer model
+with the vast majority of components being the linear weight matrices used for
+the attention projections:</p>
+<ul>
+<li>key projection <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_k"> <msub> <mi>W</mi> <mi>k</mi> </msub> </math></span> .</li>
+<li>query projection <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_q"> <msub> <mi>W</mi> <mi>q</mi> </msub> </math></span> .</li>
+<li>value projection <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_v"> <msub> <mi>W</mi> <mi>v</mi> </msub> </math></span> .</li>
+</ul>
+<p>All of which are linear layers.</p>
+<p>The BERT model is not a classifier, at least in its base form, so we compare the
+cosine similarity of the final pooler embeddings between an uncompressed
+(float32) and a compressed (SVD + quantization) model.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" e_\text{cosine similarity} = \frac{v_\text{ground truth} \cdot v_\text{compressed}}{\|v_\text{ground truth}\| \|v_\text{compressed}\|} "> <msub> <mi>e</mi> <mtext>cosine similarity</mtext> </msub> <mo>=</mo> <mfrac> <mrow> <msub> <mi>v</mi> <mtext>ground truth</mtext> </msub> <mo>&#x22C5;<!-- ⋅ --></mo> <msub> <mi>v</mi> <mtext>compressed</mtext> </msub> </mrow> <mrow> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <msub> <mi>v</mi> <mtext>ground truth</mtext> </msub> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> <msub> <mi>v</mi> <mtext>compressed</mtext> </msub> <mo fence="false" stretchy="false">&#x2016;<!-- ‖ --></mo> </mrow> </mfrac> </math></p><table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/quantized_svd_bert.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: Performance of Quantized SVD BERT model.</p>
+</td></tr>
+</table><p>A cosine similarity of 1.0 means the two vectors are aligned, 0.0 means they are
+uncorrelated. The result of the model achieving a cosine similarity of -0.5 is
+odd as random vectors should have a cosine similarity of 0.0.</p>
+<h2>Phi-2</h2>
+<p>Finally, we take a look at a small LLM (SLM). The Phi-2 model is a 2.7B
+model for which the vast majority of parameters are contained in transformer
+layers, so linear layers (the attention projections). Here, the performance
+metric is the perplexity of the model on a validation set.</p>
+<p>Low perplexity means the model predicts the ground-truth next word in a text
+well.  It is defined as the exponentiation of the cross-entropy loss.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \text{PP} = e^{\ell_\text{CE}} "> <mtext>PP</mtext> <mo>=</mo> <msup> <mi>e</mi> <mrow class="MJX-TeXAtom-ORD"> <msub> <mi>&#x2113;<!-- ℓ --></mi> <mtext>CE</mtext> </msub> </mrow> </msup> </math></p><table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/quantized_svd_phi-2.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: Performance of Quantized SVD Phi-2 model.</p>
+</td></tr>
+</table><h1>Discussion and Conclusions</h1>
+<p>The truncated SVD does not appear to be a particularly useful compression
+method. It is also extremely noteworthy that quantization is a very effective
+way of scaling the model down.</p>
+<p>Existing academic literature includes several competing compression ideas</p>
+<ul>
+<li>different rank selection rules - sometimes based on retraining<ul>
+<li>while we could use another selection rule, the optimal rank selection is an NP in the number of layers since the error is not a monotonic function of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> -s when several layers are considered at the same time</li>
+<li>selection rules based on validation data risk overfitting to the validation data and losing model's generalization ability</li>
+</ul>
+</li>
+<li><p>another low-rank factorization of the weight matrix and model retraining to recover performance</p>
+<ul>
+<li><p>this approach is much more principled, as observed in the literature (e.g., <a href="https://arxiv.org/abs/2210.17323">GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</a>), the actual optimization problem we need to consider when compressing a matrix is</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \text{min}_{\tilde{W}} \left\|W X - \tilde{W} X\right\|_F^2 ~~~~ \text{s.t.} ~~~~ \text{rank}\left(\tilde{W}\right) \leq k "> <msub> <mtext>min</mtext> <mrow class="MJX-TeXAtom-ORD"> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> </mrow> </msub> <msubsup> <mrow> <mo symmetric="true">&#x2016;</mo> <mi>W</mi> <mi>X</mi> <mo>&#x2212;<!-- − --></mo> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mi>X</mi> <mo symmetric="true">&#x2016;</mo> </mrow> <mi>F</mi> <mn>2</mn> </msubsup> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>s.t.</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>&#xA0;</mtext> <mtext>rank</mtext> <mrow> <mo>(</mo> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>)</mo> </mrow> <mo>&#x2264;<!-- ≤ --></mo> <mi>k</mi> </math></p></li>
+<li><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="X"> <mi>X</mi> </math></span> is the input data, thus <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\left\| \tilde W - W \right\|_F^2"> <msubsup> <mrow> <mo symmetric="true">&#x2016;</mo> <mrow class="MJX-TeXAtom-ORD"> <mover> <mi>W</mi> <mo stretchy="false">&#x007E;<!-- ~ --></mo> </mover> </mrow> <mo>&#x2212;<!-- − --></mo> <mi>W</mi> <mo symmetric="true">&#x2016;</mo> </mrow> <mi>F</mi> <mn>2</mn> </msubsup> </math></span> is
+merely an approximation. Then again, using <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="X"> <mi>X</mi> </math></span> in the optimization problem
+risks overfitting to a validation set. Nevertheless, of course, we are guilty
+of this ourselves -- our binary rank search also uses example inputs.</p>
+</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h1>Recovering Performance Through Brief Retraining</h1>
+<table style="border:1px solid" align="center">
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center">
+<img src="/images/quantized_svd_bert_retrain.png" style="max-width:500px;width:100%">
+</p>
+</td></tr>
+<tr style="border:1px solid"><td style="border:1px solid">
+<p align="center" style="max-width:400px">Fig: Performance of Quantized SVD BERT model.</p>
+</td></tr>
+</table><p>In the face of terrible results, we need to find another approach. What is
+particularly surprising about quantization is that despite being performed
+per-layer, with error introduced to each layer independently, it does not
+degrade global performance very much. This is in stark contrast to the truncated
+SVD approach investigated here. SVD is an optimal compression method under the
+operator norm, but it does not appear to be a particularly useful compression
+method for neural networks -- perhaps with the exception of VGG19 where the
+majority of parameters are contained in a single linear layer.</p>
+<p>We should to abandon our initial assumption of not using data to fine-tune
+the model. The obvious next step involves looking at the network error
+globally. Instead of compressing every layer independently, we should compress
+the network as a whole. This leads to two possible ideas, investigated to some
+degree in the literature:</p>
+<ul>
+<li>compress the concatenated network parameter vector<ul>
+<li>it is not immediately obvious how to apply SVD here, parameters being a
+vector and not having a clear matrix structure</li>
+<li>if we considered the weights as a block diagonal matrix and applied SVD
+there, this is mathematically equivalent to compressing each layer with SVD
+independently</li>
+</ul>
+</li>
+<li>compress the network initially - producing a low-rank approximation to a
+matrix weight, then <strong>briefly retrain the entire network</strong> to recover a better
+<strong>global</strong> low-rank approximation for each layer<ul>
+<li>while perhaps useless as a compression method, SVD decomposition could be a
+good initialization for a low-rank factorization of the weight matrix</li>
+</ul>
+</li>
+</ul>
+<p>Work in progress...</p>
+<hr>
+<h1>References</h1>
+<p>Work in progress...</p>
+<pre><code>@article{swaminathan2020sparse,
+  title={Sparse low rank factorization for deep neural network compression},
+  author={Swaminathan, Sridhar and Garg, Deepak and Kannan, Rajkumar and Andres, Frederic},
+  journal={Neurocomputing},
+  volume={398},
+  pages={185--196},
+  year={2020},
+  publisher={Elsevier}
+}
+</code></pre>
+<div class="footnotes">
+<hr>
+<ol><li id="fn-1"><p>Some people point out that while the original image is often stored as bytes, the results from SVD decomposition are double precision numbers, which occupy 8x the space of a byte. In reality, SVD decomposition is computed in double (or single) precision numbers, but the result can be easily quantized to bytes without much loss of numerical accuracy since the vectors, the result of SVD, are orthonormal and thus, typically do not have a large numerical range.<a href="#fnref-1" class="footnote">&#8617;</a></p></li>
+<li id="fn-2"><p><a href="https://www.sciencedirect.com/science/article/pii/S0925231220302253">Sparse low rank factorization for deep neural network compression</a><a href="#fnref-2" class="footnote">&#8617;</a></p></li>
+</ol>
+</div>
+
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

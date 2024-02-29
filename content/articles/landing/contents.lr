@@ -12,5 +12,6 @@ authors: Robert Dyro
 ---
 summary: Controlling an airplane using optimal control with tuned objective parameterization using ray.tune.
 ---
+external_url: https://github.com/rdyro/ASL-X-Plane-11-Platform
+---
 body:
-

@@ -14,4 +14,6 @@ authors: Robert Dyro
 ---
 summary: Reverse-mode automatic differentiation with full sparse Jacobians and Hessians.
 ---
+external_url: https://github.com/rdyro/SpAutoDiff.jl
+---
 body:

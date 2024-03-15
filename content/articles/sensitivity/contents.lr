@@ -10,7 +10,7 @@ timestamp: 2022/02/01 00:00
 ---
 external_url: https://rdyro.github.io/sensitivity_torch/
 ---
-authors: Robert Dyro
+authors: Robert Dyro and Ed Schmerling
 ---
 summary: Optimization sensitivity analysis with PyTorch and JAX.
 ---

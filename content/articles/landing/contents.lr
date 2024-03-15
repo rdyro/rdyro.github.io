@@ -8,7 +8,7 @@ img: /images/landing_plane.jpg
 ---
 timestamp: 2023/04/01 00:00
 ---
-authors: Robert Dyro
+authors: Robert Dyro and Rohan Sinha
 ---
 summary: Controlling an airplane using optimal control with tuned objective parameterization using ray.tune.
 ---

@@ -10,7 +10,7 @@ external_url: https://github.com/rdyro/CS329T-WHACK-optimizing-for-explainabilit
 ---
 timestamp: 2022/06/01 00:00
 ---
-authors: Robert Dyro
+authors: Robert Dyro and Somrita Banerjee
 ---
 summary: Optimizing Models for Fairness and Explainability via Shapley value and local linear model penalization and differentiation.
 ---

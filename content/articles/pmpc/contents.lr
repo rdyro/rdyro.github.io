@@ -10,7 +10,7 @@ img: /images/pmpc_states.svg
 ---
 external_url: https://github.com/StanfordASL/pmpc
 ---
-authors: Robert Dyro
+authors: Robert Dyro and James Harrison
 ---
 summary: Model Predictive Control - general and consensus optimization in Julia & Python.
 ---

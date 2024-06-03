@@ -1,0 +1,17 @@
+_template: page.html
+---
+_model: article
+---
+title: Pallas Puzzles 
+---
+timestamp: 2024/06/01 00:00
+---
+img: /images/pallas_puzzles_logo.svg
+---
+authors: Robert Dyro and Ed Schmerling
+---
+summary: This set is puzzles is meant to teach you how to use Pallas from first principles in an interactive fashion. Adapted from  Sasha Rush's Triton-Puzzles.
+---
+external_url: https://github.com/rdyro/Pallas-Puzzles
+---
+body:

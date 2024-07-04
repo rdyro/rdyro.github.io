@@ -1,0 +1,197 @@
+<html lang="en">
+
+  <head>
+    <title>Robert Dyro</title>
+    <meta name="author" content="Robert Dyro" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="../../static/stylesheet.css" />
+    <link rel="stylesheet" href="../../static/pygments.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
+  </head>
+  <body>
+    <table class="bodytable">
+      <tbody>
+        <tr style="outline:thin solid black;width=100%;padding:0px">
+          <td style="width:75%;padding:10px;vertical-align:middle;">
+            <h2>Optimizing LLM inference speed in float16 in JAX with Pallas</h2><br/><strong>Robert Dyro</strong>
+          </td>
+          <td style="padding:10px;width:25%;vertical-align:middle">
+            <a href="/images/mistral_in_jax/tokens_per_sec.svg">
+              <img src="/images/mistral_in_jax/tokens_per_sec.svg" alt="alttext" width="160" height="auto" />
+            </a>
+          </td>
+        </tr>
+        <tr style="width:100px"><td colspan="2"></td></tr>
+        <tr style="width:100%;padding:0px">
+          <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
+            <p align="center" style="font-size: 40px">
+Optimizing LLM inference speed in float16 in JAX with Pallas
+</p><h1>Introduction</h1>
+<p>We aim to optimize the Local LLM model in JAX with <code>float16</code> precision to match or surpass <code>PyTorch</code> performance. We're using 
+Mistral-7B instruction-tuned as the only test-case for this project.
+The starting point is an existing implementation of the model in Flax from <a href="https://huggingface.co/rdyro/Mistral-7B-Instruct-v0.1">Hugging Face</a>.</p>
+<h3>Why <code>float16</code>?</h3>
+<p>This is a common format for fine-tuning and further development. While inference tends to be done in lower precision, <code>float16</code> is likely the highest precision needed, <code>float32</code> would rarely be used. In that sense, <code>float16</code> is an important format to optimize for.</p>
+<p align="center">
+    <img src="/images/mistral_in_jax/tokens_per_sec.svg" style="width: 100%;max-width: 500px">
+    <p align="center">Fig: An abstract figure. The existing JAX implementation is slower than PyTorch (on RTX 3090), but the optimized version outperforms it. The test cases consists of ~1k tokens of context and ~1.5k new tokens generated autoregressively.</p>
+</p><h3>Decode Layer - The Core Computations</h3>
+<p align="center">
+  <img src="/images/mistral_in_jax/decoder_layer_graph/decoder_layer_graph.svg" style="width: 100%">
+  <p align="center">Fig: The computation graph of the decode layer. The LLM consists of a stack of these layers, often with identical parameter shapes (but different weight values).</p>
+</p><p>Importantly, in causal decoding, there are two stages:</p>
+<ul>
+<li><strong>context ingestion</strong> - a full sequence attention computation</li>
+<li><strong>single-query decoding</strong> - the computation of the next token, repeatedly in a loop</li>
+</ul>
+<p>Because the <strong>single-query decoding</strong> dominates the runtime in the context of a chat-like application, we focus on optimizing this part of the model and won't analyze the context ingestion part. We, of course, do not want to make it slower, even if it experiences runtime regression, it likely won't be noticeable in the overall performance.</p>
+<table>
+<thead><tr>
+<th>Stage</th>
+<th>Runtime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context ingestion</td>
+<td>574 ms</td>
+</tr>
+<tr>
+<td>Generation</td>
+<td>62,000 ms (62 s)</td>
+</tr>
+</tbody>
+</table>
+<p>Both context ingestion and generation involve a pass through the model, for different computation shapes. Thus, regardless, the optimization should focus on accelerating the single-pass runtime of the model. However, clearly, the computation shapes to optimized for are of the generation kind – the single-query decoding.</p>
+<p>The core computation – the single-pass through the model – consists of two phases:</p>
+<p><strong>Phase 1:</strong> The attention operation, which takes the form</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" \text{softmax}\left(Q K^T \right) V "> <mtext>softmax</mtext> <mrow> <mo>(</mo> <mi>Q</mi> <msup> <mi>K</mi> <mi>T</mi> </msup> <mo>)</mo> </mrow> <mi>V</mi> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="Q \in \mathbb{R}^{n \times d}"> <mi>Q</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>n</mi> <mo>&#x00D7;<!-- × --></mo> <mi>d</mi> </mrow> </msup> </math></span> , <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="K \in \mathbb{R}^{m \times d}"> <mi>K</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>m</mi> <mo>&#x00D7;<!-- × --></mo> <mi>d</mi> </mrow> </msup> </math></span> , and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="V \in \mathbb{R}^{m \times d}"> <mi>V</mi> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>m</mi> <mo>&#x00D7;<!-- × --></mo> <mi>d</mi> </mrow> </msup> </math></span> are the query, key, and value matrices,
+respectively. The output is a matrix of size <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="n \times d"> <mi>n</mi> <mo>&#x00D7;<!-- × --></mo> <mi>d</mi> </math></span> .</p>
+<p>Because the softmax operation is applied to the rows of the matrix, the number
+of queries need not match the number of keys and values. This is particularly
+useful in the case of single-query decoding, where the query size is 1.</p>
+<p><strong>Phase 2:</strong> Output Multi-layer Perceptron (MLP). Several possibilities are
+<em>common, but for Mistral, the MLP is a SiLU activated feed-forward network</em>without bias.</p>
+<p align='center'><math xmlns="http://www.w3.org/1998/Math/MathML" alttext=" W_\text{down} \text{SiLU}\left(W_\text{up} x \odot W_\text{gate}&#xA0;x \right) "> <msub> <mi>W</mi> <mtext>down</mtext> </msub> <mtext>SiLU</mtext> <mrow> <mo>(</mo> <msub> <mi>W</mi> <mtext>up</mtext> </msub> <mi>x</mi> <mo>&#x2299;<!-- ⊙ --></mo> <msub> <mi>W</mi> <mtext>gate</mtext> </msub> <mi>x</mi> <mo>)</mo> </mrow> </math></p><p>where <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_\text{up} \in \mathbb{R}^{d \times 4d}"> <msub> <mi>W</mi> <mtext>up</mtext> </msub> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>d</mi> <mo>&#x00D7;<!-- × --></mo> <mn>4</mn> <mi>d</mi> </mrow> </msup> </math></span> , <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_\text{gate} \in \mathbb{R}^{d \times 4d}"> <msub> <mi>W</mi> <mtext>gate</mtext> </msub> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mi>d</mi> <mo>&#x00D7;<!-- × --></mo> <mn>4</mn> <mi>d</mi> </mrow> </msup> </math></span> , and <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="W_\text{down} \in \mathbb{R}^{4d \times d}"> <msub> <mi>W</mi> <mtext>down</mtext> </msub> <mo>&#x2208;<!-- ∈ --></mo> <msup> <mrow class="MJX-TeXAtom-ORD"> <mi mathvariant="double-struck">R</mi> </mrow> <mrow class="MJX-TeXAtom-ORD"> <mn>4</mn> <mi>d</mi> <mo>&#x00D7;<!-- × --></mo> <mi>d</mi> </mrow> </msup> </math></span> are
+the weight matrices of the MLP.</p>
+<p>We can benchmark the performance of the model to determine the first Phase to tackle for optimization.</p>
+<h3>Setup: Initial Profile</h3>
+<p align="center">
+    <img src="/images/mistral_in_jax/single_decode_profile_default_annotated.svg" style="width: 100%">
+    <p align="center">Fig: Profile of the decode layer with default settings for a single-query decoding. The MLP phase is the bottleneck.</p>
+</p><p>Unoptimized single-pass (the main computation scope) runtime: <strong>42 ms</strong>.</p>
+<p align="center">
+  <img src="/images/mistral_in_jax/decoder_layer_graph/decoder_layer_graph_with_highlight.svg" style="width: 100%">
+  <p align="center">Fig: The highlighted blocks dominate the runtime of the decode layer. The MLP phase is the bottleneck.</p>
+</p><h1>Optimizing Matrix Multiplication</h1>
+<p>A simple matrix multiplication has three input dimensions:</p>
+<ul>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="m"> <mi>m</mi> </math></span> - the number of rows in the left matrix</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> - the contracting dimension</li>
+<li><span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="n"> <mi>n</mi> </math></span> - the number of columns in the right matrix</li>
+</ul>
+<p>Because we established the MLP phase is the bottleneck and because the sole computationally expensive operation in the MLP phase is the matrix multiplication, we focus on optimizing this matrix multiplication (matmul) operation.</p>
+<p>JAX exposes Pallas - a Triton-like higher level kernel language.</p>
+<p>On a high level, the strategy is to (1) implement a simple matrix multiplication kernel and (2) tune the parameters of the kernel for particular hardware and input shapes.</p>
+<p align="center">
+    <img src="/images/mistral_in_jax/matrix_multiplication_sketch_with_main_dimensions.svg" style="width: 100%">
+    <p align="center">Fig: A visual representation of a simple matrix multiplication kernal with an inner-loop accumulating the matrix multiplication of a slice of the matrices by multiplying smaller blocks of the matrices.</p>
+</p><p>The figure above shows probably the simplest possible matrix multiplication kernel. The hope here is that the Pallas language (or in fact, the underlying Triton compiler) can optimize the warp-level parallelism and memory access patterns better to make this simple kernel efficient.</p>
+<p>The kernel is implemented in Pallas as follows:</p>
+<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">matmul_kernel</span><span class="p">(</span><span class="n">x_ref</span><span class="p">,</span> <span class="n">A_ref</span><span class="p">,</span> <span class="n">o_ref</span><span class="p">,</span> <span class="n">block_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">block_a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">block_d</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="n">row_id</span><span class="p">,</span> <span class="n">col_id</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">program_id</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">program_id</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">col_slice</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">col_id</span> <span class="o">*</span> <span class="n">block_d</span><span class="p">,</span> <span class="n">block_d</span><span class="p">)</span>
+    <span class="n">A_mask_j</span> <span class="o">=</span> <span class="p">(</span><span class="n">col_id</span> <span class="o">*</span> <span class="n">block_d</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_d</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">A_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">a_i</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_a</span><span class="p">)</span>
+    <span class="n">x_mask_i</span> <span class="o">=</span> <span class="p">(</span><span class="n">row_id</span> <span class="o">*</span> <span class="n">block_x</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">x_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">x_j</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_a</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">body_i</span><span class="p">(</span><span class="n">start_i</span><span class="p">,</span> <span class="n">carry_i</span><span class="p">):</span>
+        <span class="n">o_prev</span> <span class="o">=</span> <span class="n">carry_i</span>
+        <span class="n">x_mask</span> <span class="o">=</span> <span class="n">x_mask_i</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">start_i</span> <span class="o">*</span> <span class="n">block_a</span> <span class="o">+</span> <span class="n">x_j</span> <span class="o">&lt;</span> <span class="n">x_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+            <span class="n">x_ref</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">row_id</span> <span class="o">*</span> <span class="n">block_x</span><span class="p">,</span> <span class="n">block_x</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">start_i</span> <span class="o">*</span> <span class="n">block_a</span><span class="p">,</span> <span class="n">block_a</span><span class="p">)),</span>
+            <span class="n">mask</span><span class="o">=</span><span class="n">x_mask</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">a_mask</span> <span class="o">=</span> <span class="n">A_mask_j</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">start_i</span> <span class="o">*</span> <span class="n">block_a</span> <span class="o">+</span> <span class="n">a_i</span> <span class="o">&lt;</span> <span class="n">A_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">A_ref</span><span class="p">,</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">start_i</span> <span class="o">*</span> <span class="n">block_a</span><span class="p">,</span> <span class="n">block_a</span><span class="p">),</span> <span class="n">col_slice</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">a_mask</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pl</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="n">o_prev</span>
+
+    <span class="n">o_init</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">block_x</span><span class="p">,</span> <span class="n">block_d</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">o</span> <span class="o">=</span> <span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">cdiv</span><span class="p">(</span><span class="n">A_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">block_a</span><span class="p">),</span> <span class="n">body_i</span><span class="p">,</span> <span class="n">o_init</span><span class="p">)</span>
+    <span class="n">o_slice</span> <span class="o">=</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">row_id</span> <span class="o">*</span> <span class="n">block_x</span><span class="p">,</span> <span class="n">block_x</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">dslice</span><span class="p">(</span><span class="n">col_id</span> <span class="o">*</span> <span class="n">block_d</span><span class="p">,</span> <span class="n">block_d</span><span class="p">))</span>
+    <span class="n">o_mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">row_id</span> <span class="o">*</span> <span class="n">block_x</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">o_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">&amp;</span> <span class="p">(</span>
+        <span class="n">col_id</span> <span class="o">*</span> <span class="n">block_d</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">block_d</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">o_ref</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">store</span><span class="p">(</span><span class="n">o_ref</span><span class="p">,</span> <span class="n">o_slice</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">o_ref</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">o_mask</span><span class="p">)</span>
+</pre></div>
+<h3>Choosing the right parameters</h3>
+<p>A Pallas kernel optimization, especially for such a simple kernel, might be
+sensitive to the input dimensions. Picking a single set of kernel
+hyperparameters is unlikely to be optimal for all input shapes.</p>
+<p>JAX recompiles a program if the dimensions change, so we can choose kernel
+hyperparameters based on the input dimensions. On one extreme, we could pick a
+large set of combinations of input dimensions and find the optimal kernel
+hyperparameters for each combination. On the other extreme, we could pick a
+single set of kernel hyperparameters, and that works well for all input
+dimensions. The first option will squeeze out the last bit of performance, but
+it might poorly generalize to unseen input shapes. The second option is likely to
+be suboptimal, but is much more likely to generalize.</p>
+<p>We choose a middle ground, a small set of input dimensions, and a small set of
+kernel hyperparameters. We then test every input dimensions combination on every
+hyperparameter combination. Finally, to improve generalize, we want to select
+only 4 hyperparameter sets and create a map of the best hyperparameters for each
+input shape. This requires us to find a small set of hyperparameters that, when
+selected for every input dimension combination, will give us the best
+performance. This is a mixed-integer optimization problem.</p>
+<h3>Mixed-integer optimization: Choosing the best set of hyperparameters</h3>
+<p>Problem: pick a set of hyperparameters that is less than 4, such that the total speedup is maximized when for each input dimension combination, we choose one of the hyperparameter sets from that small set (of size 4).</p>
+<p>In principle, this requires testing all possible combinations of size 4 in a set
+45 possible hyperparameter combinations -- <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\binom{45}{4} = 1.5 \times 10^5"> <mrow> <mstyle scriptlevel="0"> <mrow class="MJX-TeXAtom-OPEN"> <mo maxsize="1.2em" minsize="1.2em">(</mo> </mrow> </mstyle> <mfrac linethickness="0"> <mn>45</mn> <mn>4</mn> </mfrac> <mstyle scriptlevel="0"> <mrow class="MJX-TeXAtom-CLOSE"> <mo maxsize="1.2em" minsize="1.2em">)</mo> </mrow> </mstyle> </mrow> <mo>=</mo> <mn>1.5</mn> <mo>&#x00D7;<!-- × --></mo> <msup> <mn>10</mn> <mn>5</mn> </msup> </math></span> .
+This is large but not necessarily infeasible to iterate over. However, we need
+to consider another hyperparameter possibility, the fallback to the native
+<code>matmul</code> implementation. This increases the number of hyperparameter
+combinations to <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="\binom{46}{4} = 1.4 \times 10^6"> <mrow> <mstyle scriptlevel="0"> <mrow class="MJX-TeXAtom-OPEN"> <mo maxsize="1.2em" minsize="1.2em">(</mo> </mrow> </mstyle> <mfrac linethickness="0"> <mn>46</mn> <mn>4</mn> </mfrac> <mstyle scriptlevel="0"> <mrow class="MJX-TeXAtom-CLOSE"> <mo maxsize="1.2em" minsize="1.2em">)</mo> </mrow> </mstyle> </mrow> <mo>=</mo> <mn>1.4</mn> <mo>&#x00D7;<!-- × --></mo> <msup> <mn>10</mn> <mn>6</mn> </msup> </math></span> . This is still feasible to
+iterate over, but we turn to a mixed-integer optimization solver to find the
+optimal set of hyperparameters instead.</p>
+<h3>Result: Optimal selection from a small set</h3>
+<p align="center">
+    <img src="/images/mistral_in_jax/optimal_config_visualized.svg" style="width: 100%">
+    <p align="center">Fig: Optimal kernel hyperparameter configuration for each of the input shape test point. Configuration 0 is the in-built matmul. Percentage numbers denote how much slower the in-built implementation is from the optimized kernel. Tested on Nvidia RTX 3090.</p>
+</p><p>As seen from the results, the optimized kernel can be significantly faster than the in-built matmul implementation. The speedup is particularly pronounced for larger input shapes.</p>
+<h3>Result: Optimized Profile</h3>
+<p align="center">
+    <img src="/images/mistral_in_jax/single_decode_profile_fast_annotated.svg" style="width: 100%">
+    <p align="center">Fig: Profile of the decode layer with optimized matrix multiplication for a single-query decoding. The MLP phase takes roughly the same time as the attention phase.</p>
+</p><p>Optimized single-pass (the main computation scope) runtime: <strong>25 ms</strong>.</p>
+<h1>Conclusions</h1>
+<ul>
+<li><p><strong>In the context of local LLMs, the speed of individual operations is crucial.</strong> The inference pass is not particularly complex, so even uncompiled PyTorch model is able to achieve a very high throughput. JAX, despite compilation, suffers from a slow default implementation of the <code>matmul</code> operation for some input sizes – at least on RTX 3090 as of version 0.4.29.</p>
+</li>
+<li><p>What optimizations did not work:</p>
+<ul>
+<li><strong>Similar optimization done on RTX 4090 did not yield any significant speedup.</strong> Likely, the native <code>matmul</code> implementation is already optimized for that hardware.</li>
+<li><strong>Optimized attention did not yield a speed-up.</strong> I attempted similar tuning for the multi-head attention operation. However, despite microbenchmarks showing a significant speedup, the overall performance of the model did not improve or sometimes dropped. This might have to do with how JAX compiles the program -- (I am speculating that) the Pallas kernel is a unit and cannot be partitioned and rolled into other operations in the computation graph. Similarly, the custom single-query attention bespoke Pallas kernel yielded significant improvements (up to 2x faster) in microbenchmarks, but the overall performance of the model did not improve.</li>
+<li><strong>Replacing smaller linear layers with an optimized Pallas kernel resulted in a slight slowdown.</strong> Again, this might have to do with full computation graph optimization that becomes impossible once a linear layer is partitioned into a Pallas kernel as a black-box computation unit.</li>
+</ul>
+</li>
+<li><p>Faster model compilation &amp; loading is important:</p>
+<ul>
+<li><strong>The default way to load the Mistral model is slow,</strong> it (as of 2024-07-02) performs two passes through the model on the default device. This is very suboptimal if the default device is a GPU, because the data type is <code>float32</code> and memory usage explodes to over 30GB (which few single GPUs have). If the default device is the CPU, the pass is incredibly slow. It's possible to solve this by using a <code>_do_init=False</code> initialization, but it is user-hostile and documented scantily.</li>
+</ul>
+</li>
+</ul>
+<h2>References</h2>
+<ul>
+<li><a href="https://pytorch.org/blog/accelerating-triton/">Accelerating matrix multiplication in Triton</a></li>
+<li><a href="https://pytorch.org/blog/flash-decoding/">Flash-decoding, a useful reference for implementing optimized single-query attention</a></li>
+<li><a href="https://mistral.ai/">The Mistral AI, authors of the Mistral LLM model</a></li>
+</ul>
+
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

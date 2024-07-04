@@ -1,0 +1,44 @@
+digraph AttentionLayer {
+    // Graph Styling
+    rankdir = LR; // Arrange nodes left-to-right
+    node [shape=box, style=filled, fillcolor="#f0f0f0"]; // Consistent node appearance
+    
+    // Hidden State Projections
+    hidden_state [label="Hidden State (h)\nBxSx4096"];
+    q_proj [label="Query Projection (Wq)\n4096x4096"];
+    k_proj [label="Key Projection (Wk)\n4096x1024"];
+    v_proj [label="Value Projection (Wv)\n4096x1024"];
+
+    // Self-Attention with Bias
+    q [label="Query (Q)\nBxSx32x128"];
+    k [label="Key (K)\nBxSx32x128"];
+    v [label="Value (V)\nBxSx32x128"];
+    attn_bias [label="Attention Bias (b)\nBxSxS"];
+    attn_scores [label="Attention Scores\nBxSxS"];
+    softmax [label="Softmax\nBxSxS"];
+    weighted_values [label="Weighted Values\nBxSx32x128"];
+
+    // Up/Gate/Down Projections & SiLU
+    up_proj [label="Up Projection (Wu)\n4096x14336",fillcolor="#EA80FC"];
+    gate_proj [label="Gate Projection (Wg)\n4096x14336",fillcolor="#EA80FC"];
+    silu [label="SiLU Activation\nBxSx14336"];
+    down_proj [label="Down Projection (Wd)\n14336x4096",fillcolor="#EA80FC"];
+    output [label="Output\nBxSx4096"];
+
+    // Edges (Connections)
+    hidden_state -> q_proj;
+    hidden_state -> k_proj;
+    hidden_state -> v_proj;
+    q_proj -> q;
+    k_proj -> k;
+    v_proj -> v;
+    { q, k, attn_bias } -> attn_scores;
+    attn_scores -> softmax;
+    { softmax, v } -> weighted_values;
+    weighted_values -> up_proj;
+    weighted_values -> gate_proj;
+    up_proj -> silu;
+    gate_proj -> silu;
+    silu -> down_proj;
+    down_proj -> output;
+}

@@ -2,21 +2,21 @@ _template: paper.html
 ---
 _model: paper
 ---
-title: Second-Order Sensitivity Analysis for Bilevel Optimization
+title: Realistic Extreme Behavior Generation for Improved AV Testing
 ---
-authors: Robert Dyro and Edward Schmerling and Nikos Arechiga and Marco Pavone
+authors: Robert Dyro and Matthew Foutter and Ruolin Li and Luigi Di Lillo and Edward Schmerling and Xilin Zhou and Marco Pavone
 ---
-venue: Artificial Intelligence and Statistics (AISTATS)
+venue: International Conference on Robotics and Automation (ICRA)
 ---
-year: 2022
+year: 2025
 ---
-timestamp: 2022-02-01 00:00:00 -0700
+timestamp: 2024-06-01 00:00:00 -0700
 ---
-paper_url: https://arxiv.org/abs/2205.02329
+paper_url: https://arxiv.org/pdf/2409.10669
 ---
-img: /images/second_order.png
+img: /images/extreme_behavior.png
 ---
-summary: Differentiating through optimization can be done twice to obtain bilevel program Hessians.
+summary: Extracting learned behavior distribution for realistic counterfactual generation via efficient and scalable Hessian sketching.
 ---
 body:
 

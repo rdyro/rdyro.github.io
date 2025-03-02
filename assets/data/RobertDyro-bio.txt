@@ -1,5 +1,6 @@
-Robert Dyro is a PhD candidate in the Stanford Autonomous Systems Lab (ASL) at
-Stanford University, where he works on behavior modeling and planning
-optimization for robotics. He is advised by Marco Pavone. He received a BSc in
+Robert Dyro is Software Engineer on the JAX External Team at Google. He
+completed his PhD in Robotics in the Stanford Autonomous Systems Lab (ASL) at
+Stanford University, on differentiable optimization applied to intent inference,
+and behavior modeling in the context of autonomous driving. He received a BSc in
 Aerospace Engineering with honors from University of California, Los Angeles in
 2018.

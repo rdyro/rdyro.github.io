@@ -360,9 +360,9 @@ store our custom tanh activation function:</p>
 <div class="hll"><pre><span></span>$<span class="w"> </span>touch<span class="w"> </span>graphgym/contrib/act/tanh.py
 </pre></div>
 <p>Using your editor of choice, add the following lines to <code>tanh.py</code> to create a custom tanh activation function:</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">graphgym.config</span> <span class="kn">import</span> <span class="n">cfg</span>
-<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_act</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">cfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.register</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_act</span>
 
 <span class="n">register_act</span><span class="p">(</span><span class="s1">&#39;tanh&#39;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Tanh</span><span class="p">())</span>
 </pre></div>
@@ -426,10 +426,10 @@ named <code>nas_config.py</code> within the
 </pre></div>
 <p>Next, using your editor of choice, go ahead and add the following lines
 to the file to create our custom config.</p>
-<div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">yacs.config</span> <span class="kn">import</span> <span class="n">CfgNode</span> <span class="k">as</span> <span class="n">CN</span>
-<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_config</span>
+<div class="hll"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">yacs.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">CfgNode</span> <span class="k">as</span> <span class="n">CN</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.register</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_config</span>
 
-<span class="k">def</span> <span class="nf">set_cfg_nas</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_cfg_nas</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
     <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span> <span class="o">=</span> <span class="n">CN</span><span class="p">()</span>
     <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node0</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
     <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">node1</span> <span class="o">=</span> <span class="s2">&quot;GCN&quot;</span>
@@ -484,22 +484,22 @@ and create a new file within this directory named <code>nasgnn.py</code>.</p>
 </pre></div>
 <p>And we add the following lines in <code>nasgnn.py</code> to
 define our custom NAS GNN model architecture.</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="o">...</span>
-<span class="kn">from</span> <span class="nn">graphgym.config</span> <span class="kn">import</span> <span class="n">cfg</span>
-<span class="kn">from</span> <span class="nn">graphgym.models.act</span> <span class="kn">import</span> <span class="n">act_dict</span> <span class="k">as</span> <span class="n">inbuilt_act_dict</span>
-<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">register_network</span>
-<span class="kn">from</span> <span class="nn">graphgym.register</span> <span class="kn">import</span> <span class="n">act_dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">cfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.models.act</span><span class="w"> </span><span class="kn">import</span> <span class="n">act_dict</span> <span class="k">as</span> <span class="n">inbuilt_act_dict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.register</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_network</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">graphgym.register</span><span class="w"> </span><span class="kn">import</span> <span class="n">act_dict</span>
 <span class="o">...</span>
 <span class="n">act_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">act_dict</span><span class="p">,</span> <span class="o">**</span><span class="n">inbuilt_act_dict</span><span class="p">,</span> <span class="n">identity</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">NASGNN</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">block_num</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NASGNN</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">block_num</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
     <span class="o">...</span>
 
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
         <span class="n">x</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">,</span> <span class="n">x_batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">node_feature</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">edge_index</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">batch</span>
     <span class="o">...</span>
 
@@ -663,7 +663,7 @@ script and add the following lines of code:</p>
 </pre></div>
 <p>So far, we have generated and discovered all of our experiment
 configuration files. Next, add the following lines of code:</p>
-<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">experiment_fn</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">experiment_fn</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
     <span class="c1"># our custom config from the ray config</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;custom_config&quot;</span><span class="p">]</span>
     <span class="n">repeats</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;repeats&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -840,7 +840,7 @@ implement a custom NAS class by:</p>
 </ol>
 <h2>Custom NAS Network</h2>
 <p>First, we define the blocks in our network</p>
-<div class="hll"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_in</span><span class="p">,</span> <span class="n">dim_out</span><span class="p">):</span>
   <span class="o">...</span>
   <span class="n">block_num</span> <span class="o">=</span> <span class="n">block_num</span> <span class="k">if</span> <span class="s2">&quot;block_num&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span> <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">nas</span><span class="o">.</span><span class="n">block_num</span>       
   <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>                                                    
@@ -856,7 +856,7 @@ implement a custom NAS class by:</p>
 <p>For activations, we have activations from all previous blocks to all
 subsequent ones.</p>
 <p>Next, we can implement the forward function:</p>
-<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
   <span class="n">x</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">,</span> <span class="n">x_batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">node_feature</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">edge_index</span><span class="p">,</span> <span class="n">batch</span><span class="o">.</span><span class="n">batch</span>
   <span class="o">...</span>
   <span class="n">block_inputs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">x</span><span class="p">]]</span> <span class="o">+</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">))]</span>                  

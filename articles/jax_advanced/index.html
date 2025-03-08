@@ -76,19 +76,19 @@ might need to batch over all data, but none of the configuration parameters
 (these are the same for each batch). How to automatically compute which
 arguments should be batched over and which not?</p>
 <p><em>Note: <code>vmap</code> expects that the user explicitly instructs it which arguments to batch over (and which axis to use)</em></p>
-<div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">jax</span> <span class="kn">import</span> <span class="n">vmap</span><span class="p">,</span> <span class="n">Array</span>
-<span class="kn">from</span> <span class="nn">jax.tree_util</span> <span class="kn">import</span> <span class="n">tree_map</span>
+<div class="hll"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">vmap</span><span class="p">,</span> <span class="n">Array</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.tree_util</span><span class="w"> </span><span class="kn">import</span> <span class="n">tree_map</span>
 
-<span class="k">def</span> <span class="nf">computational_routine</span><span class="p">(</span><span class="n">problem</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Array</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">computational_routine</span><span class="p">(</span><span class="n">problem</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Array</span><span class="p">:</span>
     <span class="o">...</span>
 
-<span class="k">def</span> <span class="nf">vmap_automatically</span><span class="p">(</span><span class="n">computation_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">problem</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">vmap_automatically</span><span class="p">(</span><span class="n">computation_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">problem</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
 
     <span class="c1"># let&#39;s define a way to check whether x has a shape </span>
     <span class="c1"># (is some form of data, strings don&#39;t have a &quot;shape&quot; attribute)</span>
     <span class="c1"># and whether the first entry in the shape corresponds to the `batch_size` provided</span>
-    <span class="k">def</span> <span class="nf">is_batchable</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_batchable</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s2">&quot;shape&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">batch_size</span>
 
     <span class="c1"># we&#39;re going to map over every argument in the problem (recursively)</span>
@@ -105,7 +105,7 @@ or do things not supported by JAX. This way, JAX compiles a separate version of
 the function for each combination of "static" arguments.</p>
 <p>The simplest example of this is if we have a boolean flag that changes the
 internal logic of our function</p>
-<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">linear_transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">affine</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">linear_transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">affine</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">affine</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W</span> <span class="o">+</span> <span class="n">b</span>
     <span class="k">else</span><span class="p">:</span>
@@ -123,14 +123,14 @@ function for each possible value of <code>affine</code>.</p>
 </ul>
 <p>We would like to quickly and automatically convert all arguments of a jitted
 function that are not JAX-representable to static arguments.</p>
-<div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">jax</span> <span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">Array</span>
-<span class="k">class</span> <span class="nc">AutoJIT</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">Array</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AutoJIT</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fn</span> <span class="o">=</span> <span class="n">fn</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="c1"># this is the first time we see the arguments to the function</span>
         <span class="c1"># we&#39;re going to determine which arguments are `static`</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -148,19 +148,19 @@ function that are not JAX-representable to static arguments.</p>
 <h3>Advanced example</h3>
 <p>We can make use of argument flattening to define a more advanced version of the
 automatic jit function</p>
-<div class="hll"><pre><span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">jax</span> <span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">Array</span>
-<span class="kn">from</span> <span class="nn">jax.tree_util</span> <span class="kn">import</span> <span class="n">tree_flatten</span><span class="p">,</span> <span class="n">tree_unflatten</span><span class="p">,</span> <span class="n">tree_map</span>
+<div class="hll"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">Array</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.tree_util</span><span class="w"> </span><span class="kn">import</span> <span class="n">tree_flatten</span><span class="p">,</span> <span class="n">tree_unflatten</span><span class="p">,</span> <span class="n">tree_map</span>
 
 
-<span class="k">class</span> <span class="nc">AdvancedAutoJIT</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AdvancedAutoJIT</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The advanced version of AutoJIT, which flattens the arguments to handle pytree inputs.&quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fn</span> <span class="o">=</span> <span class="n">fn</span>
         <span class="c1"># we now have a cache of compiled functions for each combination of provided arguments</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn_cache</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span> 
 
-    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="c1"># 1. first, we flatten the arguments and keyword arguments</span>
         <span class="n">flat_args</span><span class="p">,</span> <span class="n">args_struct</span> <span class="o">=</span> <span class="n">tree_flatten</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
         <span class="n">flat_kw</span><span class="p">,</span> <span class="n">kw_struct</span> <span class="o">=</span> <span class="n">tree_flatten</span><span class="p">(</span><span class="n">kw</span><span class="p">)</span>
@@ -172,7 +172,7 @@ automatic jit function</p>
         <span class="k">if</span> <span class="n">cache_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn_cache</span><span class="p">:</span>
 
             <span class="c1"># 3. we produce a flat argument version of the function</span>
-            <span class="k">def</span> <span class="nf">flat_fn</span><span class="p">(</span><span class="o">*</span><span class="n">flat_args_kw</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">flat_fn</span><span class="p">(</span><span class="o">*</span><span class="n">flat_args_kw</span><span class="p">):</span>
                 <span class="c1"># 4. we need to unflatten the arguments and keyword arguments</span>
                 <span class="n">args</span><span class="p">,</span> <span class="n">kw_args</span> <span class="o">=</span> <span class="n">flat_args_kw</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="n">flat_args</span><span class="p">)],</span> <span class="n">flat_args_kw</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">flat_args</span><span class="p">)</span> <span class="p">:]</span>
                 <span class="n">args</span> <span class="o">=</span> <span class="n">tree_unflatten</span><span class="p">(</span><span class="n">args_struct</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
@@ -208,8 +208,8 @@ generator key and the key uniquely determines the numbers generated.</p>
 <li>retain the first of the split keys as the new global key</li>
 <li>use the <code>n</code> other keys for applications</li>
 </ul>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">jax</span>
-<span class="kn">import</span> <span class="nn">time</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 <span class="n">global_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()))</span>
 
 <span class="c1"># 1. we have some data with a batch dimension of 100</span>
@@ -249,12 +249,12 @@ process (a separate program) that could accept Python functions and subsequently
 compute data</p>
 <p>One simple possibility is to use the remote call Python package <code>rpyc</code>.</p>
 <p>For the server code, we simply have</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">rpyc</span>
-<span class="kn">import</span> <span class="nn">jax</span>
-<span class="kn">import</span> <span class="nn">cloudpickle</span> <span class="k">as</span> <span class="nn">ser</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">rpyc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cloudpickle</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ser</span>
 
-<span class="k">class</span> <span class="nc">PersistentJAXFunctions</span><span class="p">(</span><span class="n">rpyc</span><span class="o">.</span><span class="n">Service</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">exposed_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn_bytes</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">args_bytes</span><span class="p">,</span> <span class="n">kwargs_bytes</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PersistentJAXFunctions</span><span class="p">(</span><span class="n">rpyc</span><span class="o">.</span><span class="n">Service</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">exposed_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn_bytes</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">args_bytes</span><span class="p">,</span> <span class="n">kwargs_bytes</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;persistent_functions&quot;</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">persistent_functions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">fn_bytes</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">persistent_functions</span><span class="p">:</span>
@@ -263,16 +263,16 @@ compute data</p>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">persistent_functions</span><span class="p">[</span><span class="n">fn_bytes</span><span class="p">](</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </pre></div>
 <p>and for the client</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">rpyc</span>
-<span class="kn">import</span> <span class="nn">jax</span>
-<span class="kn">import</span> <span class="nn">cloudpickle</span> <span class="k">as</span> <span class="nn">ser</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">rpyc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cloudpickle</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ser</span>
 
 <span class="c1"># a decorator to make a function persistent via calls to an rpyc server</span>
-<span class="k">def</span> <span class="nf">persistent_call</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">18861</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">persistent_call</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">18861</span><span class="p">):</span>
     <span class="n">c</span> <span class="o">=</span> <span class="n">rpyc</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
     <span class="n">fn_bytes</span> <span class="o">=</span> <span class="n">ser</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">persistent_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">persistent_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="n">args_bytes</span><span class="p">,</span> <span class="n">kw_bytes</span> <span class="o">=</span> <span class="n">ser</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="n">ser</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">kw</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">fn_bytes</span><span class="p">,</span> <span class="n">args_bytes</span><span class="p">,</span> <span class="n">kw_bytes</span><span class="p">)</span>
 
@@ -280,21 +280,21 @@ compute data</p>
 
 
 <span class="nd">@persistent_call</span>
-<span class="k">def</span> <span class="nf">linear_transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">linear_transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">x</span> <span class="o">@</span> <span class="n">W</span> <span class="o">+</span> <span class="n">b</span>
 </pre></div>
 <p>The obvious disadvantage of this solution is that it can easily be bottlenecked
 by what is effectively a TCP based data transfer, which can be slow.</p>
 <h3>2. What to do if pickling fails on a JAX object?</h3>
 <p>In Python, if an object fails to pickle, it is possible to define a custom serialization method using the in-built library <code>copyreg</code> like so:</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">copyreg</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">copyreg</span>
 
-<span class="k">class</span> <span class="nc">P</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">P</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">=</span> <span class="n">a</span>
 
-<span class="k">def</span> <span class="nf">custom_pickling</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">P</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">custom_constructor</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">custom_pickling</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">P</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">custom_constructor</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">P</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
 
     <span class="n">pickleable_objs_to_save</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">a</span><span class="p">,)</span>
@@ -309,13 +309,13 @@ by what is effectively a TCP based data transfer, which can be slow.</p>
 <p>Let's consider the example of wrapping scipy object for KDTree nearest point
 search. This object primarily returns integer indices, so we need not worry about
 differentiability.</p>
-<div class="hll"><pre><span></span><span class="k">class</span> <span class="nc">JAXKDTree</span><span class="p">(</span><span class="n">KDTree</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">n_return</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+<div class="hll"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">JAXKDTree</span><span class="p">(</span><span class="n">KDTree</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">n_return</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">jax_data</span> <span class="o">=</span> <span class="n">data</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_return</span> <span class="o">=</span> <span class="n">n_return</span>
 
-    <span class="k">def</span> <span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="c1"># this function returns a float distance and an int index, so it&#39;s easy to wrap</span>
         <span class="c1"># 1. we cast x to a numpy array</span>
         <span class="c1"># 2. we recompute the distance to the nearest neighbor in JAX to make it differentiable</span>
@@ -324,7 +324,7 @@ differentiability.</p>
         <span class="n">dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">jax_data</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:])</span>
         <span class="k">return</span> <span class="n">dist</span><span class="p">,</span> <span class="n">idx</span>
 
-    <span class="k">def</span> <span class="nf">_query_ball_point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_query_ball_point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="c1"># for JAX, we need to make sure that this function returns the same output shape every time</span>
 
         <span class="c1"># 1. we call the original function</span>
@@ -336,7 +336,7 @@ differentiability.</p>
         <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_return</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_return</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">idx</span><span class="p">))]</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">query_ball_point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">query_ball_point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
         <span class="c1"># 1. for a pure_callback in JAX, we construct the function output shape and dtype</span>
         <span class="c1"># this can be a pytree of these shape + dtype structs</span>
         <span class="n">output_shape</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_return</span><span class="p">,),</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
@@ -349,12 +349,12 @@ differentiability.</p>
 <p>Let's wrap the PyTorch <code>cross_entropy_loss</code> function, which includes both
 floating point and integer arguments.</p>
 <p>We first define the PyTorch interface as follows</p>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">jax.tree_util</span> <span class="kn">import</span> <span class="n">tree_map</span><span class="p">,</span> <span class="n">tree_flatten</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.tree_util</span><span class="w"> </span><span class="kn">import</span> <span class="n">tree_map</span><span class="p">,</span> <span class="n">tree_flatten</span>
 
 <span class="c1"># we define two, numpy compatible, pytorch functions</span>
 
-<span class="k">def</span> <span class="nf">cross_entropy_loss_torch</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_entropy_loss_torch</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
     <span class="c1"># 1. if arguments come in as numpy arrays, so we need to convert them to torch tensors</span>
     <span class="n">numpy_mode</span> <span class="o">=</span> <span class="nb">any</span><span class="p">([</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">]])</span>
     <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">])</span>
@@ -363,7 +363,7 @@ floating point and integer arguments.</p>
     <span class="c1"># 3. we convert the output back to a numpy array, this is what JAX expects</span>
     <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span> <span class="k">if</span> <span class="n">numpy_mode</span> <span class="k">else</span> <span class="n">out</span>
 
-<span class="k">def</span> <span class="nf">cel_vjp</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cel_vjp</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">):</span>
     <span class="c1"># 1. if arguments come in as numpy arrays, so we need to convert them to torch tensors</span>
     <span class="n">numpy_mode</span> <span class="o">=</span> <span class="nb">any</span><span class="p">([</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">tree_flatten</span><span class="p">([</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">])[</span><span class="mi">0</span><span class="p">]])</span>
     <span class="n">args</span><span class="p">,</span> <span class="n">gs</span> <span class="o">=</span> <span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="p">[</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">])</span>
@@ -378,17 +378,17 @@ floating point and integer arguments.</p>
 <p>Then, we construct the custom vector-Jacobian rule in JAX</p>
 <div class="hll"><pre><span></span><span class="c1"># time to define the JAX function with a reverse-mode gradient</span>
 <span class="nd">@jax</span><span class="o">.</span><span class="n">custom_vjp</span>
-<span class="k">def</span> <span class="nf">cross_entropy_loss_jax</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_entropy_loss_jax</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
     <span class="n">output_shape</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">((),</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">pure_callback</span><span class="p">(</span><span class="n">cross_entropy_loss_torch</span><span class="p">,</span> <span class="n">output_shape</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
 
 <span class="c1"># 1. we define a fwd pass function which returns the output and the arguments as a tuple</span>
-<span class="k">def</span> <span class="nf">fwd_fn</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">fwd_fn</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
     <span class="n">args</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">cross_entropy_loss_jax</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">args</span>
 
 <span class="c1"># 2. we define a backwards pass function that returns just backwards the sensitivity terms</span>
-<span class="k">def</span> <span class="nf">bwd_fn</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">bwd_fn</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">):</span>
     <span class="n">output_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">pure_callback</span><span class="p">(</span><span class="n">cel_vjp</span><span class="p">,</span> <span class="n">output_shape</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">gs</span><span class="p">)</span>
 
@@ -456,7 +456,7 @@ have a variable shape.</p>
 <ol>
 <li><code>jax.lax.scan</code> returns the sequential mapping history for a fixed number of iterations</li>
 </ol>
-<div class="hll"><pre><span></span><span class="kn">import</span> <span class="nn">jax</span><span class="o">,</span> <span class="nn">jax.numpy</span> <span class="k">as</span> <span class="nn">jnp</span><span class="o">,</span> <span class="nn">jax.random</span> <span class="k">as</span> <span class="nn">random</span>
+<div class="hll"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.random</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">random</span>
 
 <span class="n">r</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,))</span>
 <span class="n">scaled_fib</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
@@ -464,7 +464,7 @@ have a variable shape.</p>
     <span class="n">next_num</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">scaled_fib</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">scaled_fib</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
     <span class="n">scaled_fib</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">scaled_fib</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">next_num</span><span class="p">])])</span>
 <span class="c1"># becomes</span>
-<span class="k">def</span> <span class="nf">scan_fn</span><span class="p">(</span><span class="n">carry</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">scan_fn</span><span class="p">(</span><span class="n">carry</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">):</span>
     <span class="n">prev_num</span><span class="p">,</span> <span class="n">cur_num</span> <span class="o">=</span> <span class="n">carry</span>  <span class="c1"># arguments can be PyTrees</span>
     <span class="n">next_num</span> <span class="o">=</span> <span class="n">multiplier</span> <span class="o">*</span> <span class="n">cur_num</span> <span class="o">+</span> <span class="n">prev_num</span>
     <span class="n">carry</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur_num</span><span class="p">,</span> <span class="n">next_num</span><span class="p">)</span>
@@ -482,7 +482,7 @@ have a variable shape.</p>
 <li><code>jax.lax.fori_loop</code> returns only the last value for a fixed number of iterations</li>
 </ol>
 <div class="hll"><pre><span></span><span class="c1"># a simple ODE</span>
-<span class="kn">import</span> <span class="nn">jax</span><span class="o">,</span> <span class="nn">jax.numpy</span> <span class="k">as</span> <span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="n">A</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">]])</span>
 <span class="n">x0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
 
@@ -497,7 +497,7 @@ have a variable shape.</p>
 </ol>
 <div class="hll"><pre><span></span><span class="c1"># a simple ODE, which we terminate once we exceed position x[0] = 0.5</span>
 <span class="c1"># we want to count the number of iterations</span>
-<span class="kn">import</span> <span class="nn">jax</span><span class="o">,</span> <span class="nn">jax.numpy</span> <span class="k">as</span> <span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="n">A</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">]])</span>
 <span class="n">x0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
 
@@ -521,7 +521,7 @@ on the number of iterations), but we avoid unnecessary computations once the end
 met, by using <code>cond</code>.</p>
 <div class="hll"><pre><span></span><span class="c1"># a simple ODE, which we terminate once we exceed position x[0] = 0.5</span>
 <span class="c1"># we want to count the number of iterations</span>
-<span class="kn">import</span> <span class="nn">jax</span><span class="o">,</span> <span class="nn">jax.numpy</span> <span class="k">as</span> <span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="n">A</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">]])</span>
 <span class="n">x0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
 
@@ -533,7 +533,7 @@ met, by using <code>cond</code>.</p>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;x = </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="c1"># becomes</span>
 <span class="c1"># we make use of PyTrees to propagate a tuple of iteration counter and the state x</span>
-<span class="k">def</span> <span class="nf">scan_fn</span><span class="p">(</span><span class="n">carry</span><span class="p">,</span> <span class="n">_</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">scan_fn</span><span class="p">(</span><span class="n">carry</span><span class="p">,</span> <span class="n">_</span><span class="p">):</span>
     <span class="n">it</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">carry</span>
     <span class="c1"># only advance x if the position is not yet reached</span>
     <span class="n">it_x</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">it</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">A</span> <span class="o">@</span> <span class="n">x</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>

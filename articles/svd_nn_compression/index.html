@@ -137,7 +137,7 @@ selection rule:</p>
 </blockquote>
 <p>Since the error is a monotonic function of <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> , we can use <strong>binary search</strong> to
 find the smallest <span><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k"> <mi>k</mi> </math></span> that satisfies the error condition.</p>
-<div class="hll"><pre><span></span><span class="k">def</span> <span class="nf">evaluate_error</span><span class="p">(</span><span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="hll"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">evaluate_error</span><span class="p">(</span><span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">rescale</span><span class="p">(</span><span class="n">CompressionConfig</span><span class="p">(</span><span class="n">Compression</span><span class="o">.</span><span class="n">SIZE_K</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
     <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
         <span class="n">new_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>

@@ -68,6 +68,9 @@ a {
   text-decoration: none;
 }
 
+body {
+  background-color: #ffffff;
+} 
 
 a:focus,
 a:hover {

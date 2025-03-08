@@ -8,7 +8,7 @@ img: /images/deepseek_r1_jax.png
 ---
 timestamp: 2025/03/05 00:00
 ---
-authors: Robert Dyro and Rohan Sinha
+authors: Robert Dyro
 ---
 summary: Open-source Deepseek R1 inference using JAX, minimal yet performant.
 ---

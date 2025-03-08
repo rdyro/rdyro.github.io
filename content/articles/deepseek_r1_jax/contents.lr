@@ -1,0 +1,17 @@
+_template: page.html
+---
+_model: article
+---
+title: Minimal Deepseek R1 inference
+---
+img: /images/deepseek_r1_jax.png
+---
+timestamp: 2025/03/05 00:00
+---
+authors: Robert Dyro and Rohan Sinha
+---
+summary: Open-source Deepseek R1 inference using JAX, minimal yet performant.
+---
+external_url: https://github.com/jax-ml/jax-llm-examples/tree/main/deepseek_r1_jax
+---
+body:

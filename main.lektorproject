@@ -8,4 +8,4 @@ sqlitedict = 2.1.0
 [servers.github]
 name = Github Pages
 enabled = yes
-target = ghpages://rdyro/rdyro.github.io
+target = ghpages://rdyro/rdyro.github.io?cname=robertdyro.com

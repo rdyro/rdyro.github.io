@@ -1,0 +1,147 @@
+<html lang="en">
+
+  <head>
+    <title>Robert Dyro</title>
+    <meta name="author" content="Robert Dyro" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="../../static/stylesheet.css" />
+    <link rel="stylesheet" href="../../static/pygments.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>" />
+  </head>
+  <body>
+    <table class="bodytable">
+      <tbody>
+        <tr style="outline:thin solid black;width=100%;padding:0px">
+          <td style="width:75%;padding:10px;vertical-align:middle;">
+            <h2>Pallas-Triton kernels and kernel auto-tuning</h2><br/><strong>Robert Dyro</strong>
+          </td>
+          <td style="padding:10px;width:25%;vertical-align:middle">
+            <a href="/images/ragged_dot.svg">
+              <img src="/images/ragged_dot.svg" alt="alttext" width="160" height="auto" />
+            </a>
+          </td>
+        </tr>
+        <tr style="width:100px"><td colspan="2"></td></tr>
+        <tr style="width:100%;padding:0px">
+          <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
+            <p align="center" style="font-size: 25px">
+Modern kernel languages and why use them?
+</p><p>Some algorithms for LLM inference and training have enough algorithmic structure
+that their implementation in terms of higher level ops (e.g., numpy operations)
+is often suboptimal on modern hardware. Lower-level languages expose more
+control over hardware and allow encoding of algorithmic structure in the
+implementation (e.g., smaller intermediate values improving cache-locality in
+flash attention). Currently (2025), modern accelerators, like NVIDIA GPUs and
+Google's TPUs consist largely of a matrix multiplication unit which needs to be
+efficiently driven in software to achieve peak computational performance.</p>
+<p>Any lower level language that allows for low-level hardware control and the
+ability to efficiently program the matrix multiplication unit is a good
+candidate for LLM algorithms. For NVIDIA GPUs,
+<a href="https://en.wikipedia.org/wiki/CUDA">CUDA</a> satisfies both requirements, but is a
+fairly low-level dialect, which means writing code can be tedious and
+error-prone. Modern alternatives positioned somewhere between CUDA's low-level
+control and high level (numpy) ops are kernel languages like
+<a href="https://github.com/triton-lang/triton">Triton</a>, and
+<a href="https://docs.jax.dev/en/latest/pallas/index.html">Pallas</a> which both use Python
+syntax and array-level operations to express a concise, but low-level interface
+for programming accelerators.</p>
+<p>Both Triton and Pallas have dialects targeting different hardware and different
+levels of manual control. Triton supports NVIDIA GPUs (with some support for
+AMD), whereas Pallas supports NVIDIA GPUs and Google TPUs. The old GPU-targeting
+dialect of Pallas used Triton to lower pallas programs on GPU. However, with
+architectural changes in the Hopper and Blackwell GPUs, Triton's original
+dialect is not expressive enough to efficiently use the <a href="https://hazyresearch.stanford.edu/blog/2024-05-12-tk">new matrix
+multiplication unit</a>. Both
+Triton and Pallas introduced new dialects,
+<a href="https://github.com/triton-lang/triton/blob/main/python/tutorials/gluon/05-wgmma.py">Gluon</a>
+and <a href="https://docs.jax.dev/en/latest/pallas/gpu/reference.html">Mosaic GPU</a>
+giving lower-level control and allowing writing kernels that utilize the
+hardware fully. Additionally, Pallas also contains the <a href="https://docs.jax.dev/en/latest/pallas/tpu/details.html">TPU
+dialect</a> which does the
+same for TPUs.</p>
+<p>An opinionated summary:</p>
+<ul>
+<li><u>Triton:</u> relatively high-level, designed for GPUs<ul>
+<li><strong>Triton dialect:</strong> for GPUs<ul>
+<li>great for all workloads on Ampere NVIDIA GPUs</li>
+<li>good for Hopper+ for memory bandwidth-bound workloads like some inference</li>
+<li>easy to write</li>
+</ul>
+</li>
+<li><strong>Gluon dialect:</strong> for NVIDIA GPUs<ul>
+<li>great for compute-bound workloads on Hopper+ NVIDIA GPUs</li>
+<li>more difficult to write</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><u>Pallas:</u> relatively high-level, designed for GPUs and TPUs<ul>
+<li><strong>Pallas-Triton dialect:</strong> for GPUs, like Triton dialect</li>
+<li><strong>Pallas-Mosaic-GPU dialect:</strong> for NVIDIA GPUs<ul>
+<li>great for compute-bound workloads on Hopper+ NVIDIA GPUs</li>
+<li>more difficult to write (but much more concise than writing CUDA directly)</li>
+</ul>
+</li>
+<li><strong>Pallas-TPU dialect:</strong> for Google's TPUs<ul>
+<li>great for memory bandwidth-bound and compute-bound workloads on all TPUs</li>
+<li>relatively easy to write</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2>Kernels</h2>
+<h3>Flash Attention</h3>
+<p>The attention operator is fundamental to modern LLMs by capturing temporal
+dependencies between tokens. Flash attention is a memory efficient and
+cache-friendly algorithm for computing the attention operator exactly.</p>
+<p>An example implementation in Pallas-Triton:
+<a href="https://github.com/rdyro/flash_attention_pallas_triton">https://github.com/rdyro/flash_attention_pallas_triton</a></p>
+<h2>Ragged Dot (Group Matrix Multiplication)</h2>
+<p>Ragged dot is a matrix multiplication operator where the right-hand side (RHS)
+consists of a stack of "expert" matrices and the left-hand side (LHS) has a
+ragged assignment of rows to these experts. For example, the first 5 LHS rows
+are multiplied with the first "expert" matrix, the next 3 rows with the second,
+the next 7 rows with the eight "expert" matrix, and so on. With the output rows
+having the same assignment as the LHS. Both the LHS and the output are a 2D
+tensor with the row dimension ragged. The RHS is a 3D tensor with the first
+dimension representing the "expert" index.</p>
+<p align="center">
+<img src="/images/ragged_dot.svg" style="max-width: 70%; width: 600px" />
+</p><p>An example implementation in Pallas-Triton:
+<a href="https://github.com/rdyro/gpu_ragged_dot">https://github.com/rdyro/gpu_ragged_dot</a></p>
+<h2>Auto-tuning</h2>
+<p>One of the most successful techniques for getting full-performance of a kernel
+is to parameterize various kernel parameters like work-chunk size, block tiling
+or memory pipeline buffering. These can then be tuned by randomly sampling or
+exhaustively scanning over the space of parameters to identify the set resulting
+in the fastest run-time on a particular hardware and problem size.</p>
+<p><a href="https://github.com/rdyro/tune-jax">tune-jax</a> is a Python package (also
+available on PyPI via <code>pip install tune-jax</code>) automating the auto-tuning
+process, mostly by using parallel compilation and automatic profile parsing for
+accurate timing results.</p>
+<p>For example, after tuning flash attention on my RTX 3090, I got the following
+sorted and truncated results:</p>
+<pre><code>  id    block_q    block_k    num_warps    num_stages    t_mean (s)    t_std (s)
+----  ---------  ---------  -----------  ------------  ------------  -----------
+ 168        128         64                               3.8098e-02   3.1642e-04
+ 176        128         64            4                  3.8528e-02   3.0663e-04
+ 134         64        128                          2    3.9203e-02   1.6830e-04
+ 178        128         64            4             2    3.9289e-02   2.3250e-04
+ 110         64         32                          2    3.9595e-02   1.5604e-04
+...
+  31         16         64            2             4    1.4387e-01   1.3587e-03
+ 173        128         64            2             1    1.5114e-01   1.0685e-03
+ 185        128        128            2             1    2.4229e-01   6.5207e-04
+ 184        128        128            2                  1.1032e+00   7.1724e-03
+ 186        128        128            2             2    1.1805e+00   1.6940e-03
+</code></pre>
+<p>The fastest parameter setting runs <code>1.1805e+00 / 3.8098e-02 = 31</code> faster than
+the slowest setting.</p>
+
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>

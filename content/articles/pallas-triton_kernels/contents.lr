@@ -44,9 +44,10 @@ levels of manual control. Triton supports NVIDIA GPUs (with some support for
 AMD), whereas Pallas supports NVIDIA GPUs and Google TPUs. The old GPU-targeting
 dialect of Pallas used Triton to lower pallas programs on GPU. However, with
 architectural changes in the Hopper and Blackwell GPUs, Triton's original
-dialect is not expressive enough to efficiently use the [new matrix
-multiplication unit](https://hazyresearch.stanford.edu/blog/2024-05-12-tk). Both
-Triton and Pallas introduced new dialects,
+dialect cannot explicitly use the [new matrix multiplication
+unit](https://hazyresearch.stanford.edu/blog/2024-05-12-tk) and relies on
+automatic compiler optimizations to issue that instruction which isn't always
+guaranteed or optimal. Both Triton and Pallas introduced new dialects,
 [Gluon](https://github.com/triton-lang/triton/blob/main/python/tutorials/gluon/05-wgmma.py)
 and [Mosaic GPU](https://docs.jax.dev/en/latest/pallas/gpu/reference.html)
 giving lower-level control and allowing writing kernels that utilize the

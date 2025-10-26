@@ -2,7 +2,7 @@ _template: page.html
 ---
 _model: article
 ---
-title: JAX Advanced Techniques
+title: Some JAX Techniques
 ---
 timestamp: 2023/02/10 00:00
 ---
@@ -10,10 +10,10 @@ authors: Robert Dyro and Spencer Richards
 ---
 img: /images/jax_tutorial.png
 ---
-summary: This tutorial is at attempt to produce an educational reference for JAX techniques we found particularly interesting in our work and research. As such, it is a collection of a few disjoint topics.
+summary: A small summary of some of JAX's techniques we found particularly interesting in our work and research. A collection of a few disjoint topics.
 ---
 body:
-# JAX Advanced Techniques
+# Some JAX Techniques
 
 Created by: Robert Dyro, Spencer Richards
 
@@ -51,17 +51,18 @@ The JAX name for any valid nested Python structure is a *Pytree*, a tree because
 each container (e.g., tuple, list, dictionary) is a root with several children
 nodes (the elements in the container).
 
-There are many excellent JAX introductory resources for Pytrees, but the advanced
+There are many excellent JAX introductory resources for Pytrees, but the 
 techniques using Pytrees we cover in this tutorial are the following:
 1. automatically determining which function arguments should be batched over in `vmap`
 2. how to compile a JAX function that takes arguments not supported by JAX
 
 The three most important methods for manipulating trees in JAX are:
-- `tree_flatten` for flattening a Pytree (nested Python container) into a single list
-- `tree_unflatten` for reforming a single list of arguments (e.g., once
+- `jax.tree.flatten` for flattening a Pytree (nested Python container) into a
+single list
+- `jax.tree.unflatten` for reforming a single list of arguments (e.g., once
 modified) into the original Pytree (nested Python container) structure
-- `tree_map` for applying a function (typically a simple Python lambda) to every
-argument in a Pytree (nested Python container)
+- `jax.tree.map` for applying a function (typically a simple Python lambda) to
+every argument in a Pytree (nested Python container)
 
 ### 1. Automatically batching over arguments in `vmap`
 
@@ -158,9 +159,9 @@ class AutoJIT:
         return self.compiled_fn(*args, **kw)
 ```
 
-### Advanced example
+### Some example
 
-We can make use of argument flattening to define a more advanced version of the
+We can make use of argument flattening to define a more hands-off version of the
 automatic jit function
 
 ```python
@@ -169,8 +170,8 @@ from jax import jit, Array
 from jax.tree_util import tree_flatten, tree_unflatten, tree_map
 
 
-class AdvancedAutoJIT:
-    """The advanced version of AutoJIT, which flattens the arguments to handle pytree inputs."""
+class AutoJIT:
+    """An AutoJIT, which flattens the arguments and automatically marks all non-Arrays as static."""
     def __init__(self, fn: Callable):
         self.fn = fn
         # we now have a cache of compiled functions for each combination of provided arguments
@@ -570,7 +571,7 @@ body_fn = lambda it_x: (it_x[0] + 1, A @ it_x[1])
 print(jax.lax.while_loop(cond_fn, body_fn, (0, x0)))
 ```
 
-### Advanced loop example
+### Control flow—loop—example
 
 What if we want to perform a computation a variable number of times, while
 retaining history? We can make our own loop version by combining `scan` with
@@ -603,7 +604,7 @@ it, x = jax.lax.scan(scan_fn, (0, x0), jnp.zeros(100))[0]
 ```
 ----
 
-## NN libraries for JAX
+## NN libraries for JAX (2022)
 
 Here, we quickly cover the three main machine learning (ML) libraries
 for JAX. These, in short, are:
@@ -641,7 +642,7 @@ the support is currently conceptually confusing to us.
 
 For this reason, we are currently using Haiku!
 
-## The `jfi` package (friendly JAX interface)
+## The `jfi` utility package (friendly JAX interface)
 
 In our research and coming from PyTorch, we found it much easier to work with
 JAX by writing a library of utility functions

@@ -15,7 +15,7 @@ summary: Flash Attention and Ragged Dot in Pallas-Triton for Ampere GPUs, and ke
 body:
 
 <p align="center" style="font-size: 25px">
-Modern kernel languages and why use them?
+Modern kernel languages and why use them.
 </p>
 
 Some algorithms for LLM inference and training have enough algorithmic structure

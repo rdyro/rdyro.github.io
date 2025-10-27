@@ -16,8 +16,8 @@
             <h2>Pallas-Triton kernels and kernel auto-tuning</h2><br/><strong>Robert Dyro</strong>
           </td>
           <td style="padding:10px;width:25%;vertical-align:middle">
-            <a href="/images/ragged_dot.svg">
-              <img src="/images/ragged_dot.svg" alt="alttext" width="160" height="auto" />
+            <a href="/images/tune_jax_and_kernels.svg">
+              <img src="/images/tune_jax_and_kernels.svg" alt="alttext" width="160" height="auto" />
             </a>
           </td>
         </tr>
@@ -50,9 +50,10 @@ levels of manual control. Triton supports NVIDIA GPUs (with some support for
 AMD), whereas Pallas supports NVIDIA GPUs and Google TPUs. The old GPU-targeting
 dialect of Pallas used Triton to lower pallas programs on GPU. However, with
 architectural changes in the Hopper and Blackwell GPUs, Triton's original
-dialect is not expressive enough to efficiently use the <a href="https://hazyresearch.stanford.edu/blog/2024-05-12-tk">new matrix
-multiplication unit</a>. Both
-Triton and Pallas introduced new dialects,
+dialect cannot explicitly use the <a href="https://hazyresearch.stanford.edu/blog/2024-05-12-tk">new matrix multiplication
+unit</a> and relies on
+automatic compiler optimizations to issue that instruction which isn't always
+guaranteed or optimal. Both Triton and Pallas introduced new dialects,
 <a href="https://github.com/triton-lang/triton/blob/main/python/tutorials/gluon/05-wgmma.py">Gluon</a>
 and <a href="https://docs.jax.dev/en/latest/pallas/gpu/reference.html">Mosaic GPU</a>
 giving lower-level control and allowing writing kernels that utilize the

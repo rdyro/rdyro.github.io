@@ -13,7 +13,7 @@
       <tbody>
         <tr style="outline:thin solid black;width=100%;padding:0px">
           <td style="width:75%;padding:10px;vertical-align:middle;">
-            <h2>JAX Advanced Techniques</h2><br/><strong>Robert Dyro</strong>, Spencer Richards
+            <h2>Some JAX Techniques</h2><br/><strong>Robert Dyro</strong>, Spencer Richards
           </td>
           <td style="padding:10px;width:25%;vertical-align:middle">
             <a href="/images/jax_tutorial.png">
@@ -24,7 +24,7 @@
         <tr style="width:100px"><td colspan="2"></td></tr>
         <tr style="width:100%;padding:0px">
           <td colspan="2" style="height:100%;padding:0px;vertical-align:top;">
-            <h1>JAX Advanced Techniques</h1>
+            <h1>Some JAX Techniques</h1>
 <p>Created by: Robert Dyro, Spencer Richards</p>
 <hr>
 <h2>Introduction</h2>
@@ -54,7 +54,7 @@ nested dictionaries for configurations and so on. The philosophy of JAX is simpl
 <p>The JAX name for any valid nested Python structure is a <em>Pytree</em>, a tree because
 each container (e.g., tuple, list, dictionary) is a root with several children
 nodes (the elements in the container).</p>
-<p>There are many excellent JAX introductory resources for Pytrees, but the advanced
+<p>There are many excellent JAX introductory resources for Pytrees, but the 
 techniques using Pytrees we cover in this tutorial are the following:</p>
 <ol>
 <li>automatically determining which function arguments should be batched over in <code>vmap</code></li>
@@ -62,11 +62,12 @@ techniques using Pytrees we cover in this tutorial are the following:</p>
 </ol>
 <p>The three most important methods for manipulating trees in JAX are:</p>
 <ul>
-<li><code>tree_flatten</code> for flattening a Pytree (nested Python container) into a single list</li>
-<li><code>tree_unflatten</code> for reforming a single list of arguments (e.g., once
+<li><code>jax.tree.flatten</code> for flattening a Pytree (nested Python container) into a
+single list</li>
+<li><code>jax.tree.unflatten</code> for reforming a single list of arguments (e.g., once
 modified) into the original Pytree (nested Python container) structure</li>
-<li><code>tree_map</code> for applying a function (typically a simple Python lambda) to every
-argument in a Pytree (nested Python container)</li>
+<li><code>jax.tree.map</code> for applying a function (typically a simple Python lambda) to
+every argument in a Pytree (nested Python container)</li>
 </ul>
 <h3>1. Automatically batching over arguments in <code>vmap</code></h3>
 <p>When you're working on computational routines, you might have a large nested
@@ -145,16 +146,16 @@ function that are not JAX-representable to static arguments.</p>
         <span class="c1"># we just call the compiled function</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiled_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
 </pre></div>
-<h3>Advanced example</h3>
-<p>We can make use of argument flattening to define a more advanced version of the
+<h3>Some example</h3>
+<p>We can make use of argument flattening to define a more hands-off version of the
 automatic jit function</p>
 <div class="hll"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">jit</span><span class="p">,</span> <span class="n">Array</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jax.tree_util</span><span class="w"> </span><span class="kn">import</span> <span class="n">tree_flatten</span><span class="p">,</span> <span class="n">tree_unflatten</span><span class="p">,</span> <span class="n">tree_map</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">AdvancedAutoJIT</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The advanced version of AutoJIT, which flattens the arguments to handle pytree inputs.&quot;&quot;&quot;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AutoJIT</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;An AutoJIT, which flattens the arguments and automatically marks all non-Arrays as static.&quot;&quot;&quot;</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fn</span> <span class="o">=</span> <span class="n">fn</span>
         <span class="c1"># we now have a cache of compiled functions for each combination of provided arguments</span>
@@ -513,7 +514,7 @@ have a variable shape.</p>
 <span class="n">body_fn</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">it_x</span><span class="p">:</span> <span class="p">(</span><span class="n">it_x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">A</span> <span class="o">@</span> <span class="n">it_x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">while_loop</span><span class="p">(</span><span class="n">cond_fn</span><span class="p">,</span> <span class="n">body_fn</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x0</span><span class="p">)))</span>
 </pre></div>
-<h3>Advanced loop example</h3>
+<h3>Control flow—loop—example</h3>
 <p>What if we want to perform a computation a variable number of times, while
 retaining history? We can make our own loop version by combining <code>scan</code> with
 <code>cond</code> to execute a function for a maximum number of iterations (an upper bound
@@ -542,7 +543,7 @@ met, by using <code>cond</code>.</p>
 <span class="n">it</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="n">scan_fn</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x0</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">100</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
 </pre></div>
 <hr>
-<h2>NN libraries for JAX</h2>
+<h2>NN libraries for JAX (2022)</h2>
 <p>Here, we quickly cover the three main machine learning (ML) libraries
 for JAX. These, in short, are:</p>
 <table>
@@ -622,7 +623,7 @@ philosophy, however, presents conceptual problems when attempting to work with
 batch layers, like BatchNorm. The author provides support for this layer, but
 the support is currently conceptually confusing to us.</p>
 <p>For this reason, we are currently using Haiku!</p>
-<h2>The <code>jfi</code> package (friendly JAX interface)</h2>
+<h2>The <code>jfi</code> utility package (friendly JAX interface)</h2>
 <p>In our research and coming from PyTorch, we found it much easier to work with
 JAX by writing a library of utility functions</p>
 <ul>

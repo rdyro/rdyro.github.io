@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="69.923164mm"
+   height="43.354462mm"
+   viewBox="0 0 69.923164 43.354462"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (1:1.4.2+202505120738+ebf0e940d0)"
+   sodipodi:docname="tune_jax_and_kernels.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.0654602"
+     inkscape:cx="213.05349"
+     inkscape:cy="301.74756"
+     inkscape:window-width="1759"
+     inkscape:window-height="1211"
+     inkscape:window-x="62"
+     inkscape:window-y="27"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-48.682243,-68.78199)">
+    <text
+       xml:space="preserve"
+       style="font-size:15.875px;line-height:1;font-family:'CMU Sans Serif';-inkscape-font-specification:'CMU Sans Serif, Normal';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-rule:evenodd;stroke-width:0.491001;stroke-linecap:square;stroke-linejoin:round"
+       x="77.0065"
+       y="65.634598"
+       id="text1"
+       transform="rotate(21.357856)"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:15.875px;font-family:'Ubuntu Mono';-inkscape-font-specification:'Ubuntu Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.491"
+         x="77.0065"
+         y="65.634598">tune_jax</tspan><tspan
+         sodipodi:role="line"
+         style="stroke-width:0.491"
+         x="77.0065"
+         y="81.509598"
+         id="tspan2" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:15.875px;line-height:1;font-family:'CMU Sans Serif';-inkscape-font-specification:'CMU Sans Serif, Normal';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-rule:evenodd;stroke-width:0.491001;stroke-linecap:square;stroke-linejoin:round"
+       x="101.02843"
+       y="2.7237222"
+       id="text4"
+       transform="rotate(46.855004)"><tspan
+         sodipodi:role="line"
+         id="tspan3"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:15.875px;font-family:'Ubuntu Mono';-inkscape-font-specification:'Ubuntu Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.491"
+         x="101.02843"
+         y="2.7237222">fa2</tspan><tspan
+         sodipodi:role="line"
+         style="stroke-width:0.491"
+         x="101.02843"
+         y="18.598722"
+         id="tspan4" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:15.875px;line-height:1;font-family:'CMU Sans Serif';-inkscape-font-specification:'CMU Sans Serif, Normal';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-rule:evenodd;stroke-width:0.491001;stroke-linecap:square;stroke-linejoin:round"
+       x="73.720993"
+       y="111.03468"
+       id="text6"
+       transform="rotate(-12.440791)"><tspan
+         sodipodi:role="line"
+         id="tspan5"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:15.875px;font-family:'Ubuntu Mono';-inkscape-font-specification:'Ubuntu Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.491"
+         x="73.720993"
+         y="111.03468">gmm</tspan><tspan
+         sodipodi:role="line"
+         style="stroke-width:0.491"
+         x="73.720993"
+         y="126.90968"
+         id="tspan6" /></text>
+  </g>
+</svg>

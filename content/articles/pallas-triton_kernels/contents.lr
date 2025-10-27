@@ -4,7 +4,7 @@ _model: article
 ---
 title: Pallas-Triton kernels and kernel auto-tuning
 ---
-img: /images/ragged_dot.svg
+img: /images/tune_jax_and_kernels.svg
 ---
 timestamp: 2025/10/12 00:00
 ---

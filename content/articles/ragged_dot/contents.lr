@@ -1,0 +1,17 @@
+_template: page.html
+---
+_model: article
+---
+title: (Presentation) ragged dot or grouped matrix multiply (gmm) in JAX
+---
+timestamp: 2025/10/28 00:00
+---
+img: /images/ragged_dot.svg
+---
+authors: Robert Dyro
+---
+summary: Ragged dot operator is often used to implement a mixture-of-experts (MoE) layer. Here's one way to do it efficiently on modern accelerators with a focus on TPUs.
+---
+external_url: /data/ragged_dot_gmm_in_JAX.pdf
+---
+body:
